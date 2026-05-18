@@ -68,8 +68,8 @@ Verify the file imports `zod` and exports `Manifest`, `Anchor`, `Piece`, `FrameK
 Create `src/scene/art/floor-y.ts`:
 
 ```ts
-import { FLOOR_BASE } from '../constants'
-import type { AreaT } from './schema'
+import { FLOOR_BASE } from "../constants";
+import type { AreaT } from "./schema";
 
 // Y baseline (in meters) for each curatable area. The scene already exposes
 // FLOOR_BASE for the main building; this fills in VT levels, atrium, skywalk.
@@ -91,13 +91,13 @@ export const FLOOR_Y: Record<AreaT, number> = {
   vt5: FLOOR_BASE.F5,
   vt6: FLOOR_BASE.F6,
   atrium: FLOOR_BASE.F2 + 5, // mid-void hero height
-  skywalk: FLOOR_BASE.F4 + 4 // overhead, ~35m up
-}
+  skywalk: FLOOR_BASE.F4 + 4, // overhead, ~35m up
+};
 
 // How high above the floor base the anchor's CENTER sits.
 // The frame primitives interpret centerPos.y as the middle of the art, so this
 // is roughly head-height plus a typical "above eye line" offset.
-export const WALL_MID_HEIGHT = 4
+export const WALL_MID_HEIGHT = 4;
 ```
 
 Test: `npx tsc --noEmit` should be clean.
@@ -111,37 +111,43 @@ Test: `npx tsc --noEmit` should be clean.
 Create `src/scene/art/manifest.ts`:
 
 ```ts
-import { signedFetch } from '~system/SignedFetch'
-import { Manifest, type ManifestT } from './schema'
-import BAKED from './manifest.baked.json'
+import { signedFetch } from "~system/SignedFetch";
+import { Manifest, type ManifestT } from "./schema";
+import BAKED from "./manifest.baked.json";
 
 const MANIFEST_URL =
   // Override at deploy time via env. The Decentraland CLI doesn't expose
   // process.env at scene runtime, so the URL is baked into the bundle here.
   // To change it, edit this file before `dcl deploy`.
-  'https://phhq-dash.vercel.app/api/manifest'
+  "https://phhq-dash-rkwi.vercel.app/api/manifest";
 
-const FETCH_TIMEOUT_MS = 5000
+const FETCH_TIMEOUT_MS = 5000;
 
 export async function loadManifest(): Promise<ManifestT> {
   try {
     const res = await Promise.race([
-      signedFetch({ url: MANIFEST_URL, init: { method: 'GET' } }),
+      signedFetch({ url: MANIFEST_URL, init: { method: "GET" } }),
       new Promise<never>((_, rej) =>
-        setTimeout(() => rej(new Error('manifest fetch timeout')), FETCH_TIMEOUT_MS)
-      )
-    ])
-    if (!res.body) throw new Error('empty manifest body')
-    const parsed = Manifest.safeParse(JSON.parse(res.body))
+        setTimeout(
+          () => rej(new Error("manifest fetch timeout")),
+          FETCH_TIMEOUT_MS,
+        ),
+      ),
+    ]);
+    if (!res.body) throw new Error("empty manifest body");
+    const parsed = Manifest.safeParse(JSON.parse(res.body));
     if (!parsed.success) {
-      console.log('[art] manifest validation failed', parsed.error.issues.slice(0, 3))
-      return BAKED as ManifestT
+      console.log(
+        "[art] manifest validation failed",
+        parsed.error.issues.slice(0, 3),
+      );
+      return BAKED as ManifestT;
     }
-    console.log(`[art] manifest v${parsed.data.version} loaded`)
-    return parsed.data
+    console.log(`[art] manifest v${parsed.data.version} loaded`);
+    return parsed.data;
   } catch (e) {
-    console.log('[art] manifest fetch failed, using baked fallback', e)
-    return BAKED as ManifestT
+    console.log("[art] manifest fetch failed, using baked fallback", e);
+    return BAKED as ManifestT;
   }
 }
 ```
@@ -176,64 +182,78 @@ You may need to enable JSON imports in `tsconfig.json`. Check if `"resolveJsonMo
 Create `src/scene/art/build.ts`:
 
 ```ts
-import { Vector3 } from '@dcl/sdk/math'
-import { FRAMES } from './frames'
-import { FLOOR_Y, WALL_MID_HEIGHT } from './floor-y'
-import type { AnchorT, FrameKindT, ManifestT, PieceT } from './schema'
+import { Vector3 } from "@dcl/sdk/math";
+import { FRAMES } from "./frames";
+import { FLOOR_Y, WALL_MID_HEIGHT } from "./floor-y";
+import type { AnchorT, FrameKindT, ManifestT, PieceT } from "./schema";
 
 // Pick which frame style to use for this (anchor, piece) pair.
 // - If anchor.allowedFrames is missing/empty: use piece.preferredFrame.
 // - If anchor allows piece.preferredFrame: use it (piece's choice wins).
 // - Else: fall back to the first allowed frame on the anchor.
 function chooseFrame(anchor: AnchorT, piece: PieceT): FrameKindT {
-  const allowed = anchor.allowedFrames
-  if (!allowed || allowed.length === 0) return piece.preferredFrame
-  return allowed.includes(piece.preferredFrame) ? piece.preferredFrame : allowed[0]
+  const allowed = anchor.allowedFrames;
+  if (!allowed || allowed.length === 0) return piece.preferredFrame;
+  return allowed.includes(piece.preferredFrame)
+    ? piece.preferredFrame
+    : allowed[0];
 }
 
 // Letterbox a piece into the anchor's bounding box. Pieces declare their own
 // width/height aspect ratio; the anchor declares the max box. Fit-inside math.
-function fit(aspect: number, maxW: number, maxH: number): { width: number; height: number } {
-  const anchorAspect = maxW / maxH
+function fit(
+  aspect: number,
+  maxW: number,
+  maxH: number,
+): { width: number; height: number } {
+  const anchorAspect = maxW / maxH;
   if (aspect > anchorAspect) {
-    return { width: maxW, height: maxW / aspect }
+    return { width: maxW, height: maxW / aspect };
   }
-  return { width: maxH * aspect, height: maxH }
+  return { width: maxH * aspect, height: maxH };
 }
 
 export function buildArtwork(manifest: ManifestT): void {
-  let spawned = 0
-  let skipped = 0
+  let spawned = 0;
+  let skipped = 0;
   for (const anchor of manifest.anchors) {
     if (!anchor.pieceId) {
-      skipped++
-      continue
+      skipped++;
+      continue;
     }
-    const piece = manifest.pieces[anchor.pieceId]
+    const piece = manifest.pieces[anchor.pieceId];
     if (!piece) {
-      console.log(`[art] anchor ${anchor.id} references missing piece "${anchor.pieceId}"`)
-      skipped++
-      continue
+      console.log(
+        `[art] anchor ${anchor.id} references missing piece "${anchor.pieceId}"`,
+      );
+      skipped++;
+      continue;
     }
-    const floorY = FLOOR_Y[anchor.area]
+    const floorY = FLOOR_Y[anchor.area];
     if (floorY === undefined) {
-      console.log(`[art] anchor ${anchor.id} has unknown area "${anchor.area}"`)
-      skipped++
-      continue
+      console.log(
+        `[art] anchor ${anchor.id} has unknown area "${anchor.area}"`,
+      );
+      skipped++;
+      continue;
     }
-    const kind = chooseFrame(anchor, piece)
-    const { width, height } = fit(piece.aspect, anchor.maxWidth, anchor.maxHeight)
+    const kind = chooseFrame(anchor, piece);
+    const { width, height } = fit(
+      piece.aspect,
+      anchor.maxWidth,
+      anchor.maxHeight,
+    );
 
     FRAMES[kind]({
       centerPos: Vector3.create(anchor.x, floorY + WALL_MID_HEIGHT, anchor.z),
       width,
       height,
       facing: anchor.facing,
-      textureSrc: piece.src
-    })
-    spawned++
+      textureSrc: piece.src,
+    });
+    spawned++;
   }
-  console.log(`[art] spawned ${spawned} pieces, skipped ${skipped}`)
+  console.log(`[art] spawned ${spawned} pieces, skipped ${skipped}`);
 }
 ```
 
@@ -251,17 +271,17 @@ The scene's `main()` is at [`src/index.ts:45`](src/index.ts#L45). Add two new im
 
 ```ts
 // at the top, with the other imports:
-import { loadManifest } from './scene/art/manifest'
-import { buildArtwork } from './scene/art/build'
+import { loadManifest } from "./scene/art/manifest";
+import { buildArtwork } from "./scene/art/build";
 
 // at the end of main():
 export function main() {
   // ... all the existing build* calls ...
-  buildPavilionHelicopter()
+  buildPavilionHelicopter();
 
   // NEW: fetch manifest + spawn art. async, but the scene continues to render
   // while this resolves. If fetch fails, baked fallback fires synchronously.
-  void loadManifest().then(buildArtwork)
+  void loadManifest().then(buildArtwork);
 }
 ```
 
@@ -276,7 +296,7 @@ Add a `prebuild` script to `package.json`:
 ```json
 {
   "scripts": {
-    "prebuild": "curl -sf https://phhq-dash.vercel.app/api/manifest -o src/scene/art/manifest.baked.json || echo 'manifest fetch failed; keeping existing baked'",
+    "prebuild": "curl -sf https://phhq-dash-rkwi.vercel.app/api/manifest -o src/scene/art/manifest.baked.json || echo 'manifest fetch failed; keeping existing baked'",
     "build": "..."
   }
 }
@@ -288,19 +308,25 @@ If `curl` isn't available cross-platform (Windows shells vary), replace with a t
 
 ```js
 // scripts/bake-manifest.js
-const fs = require('fs')
-const https = require('https')
-const URL = 'https://phhq-dash.vercel.app/api/manifest'
-const OUT = 'src/scene/art/manifest.baked.json'
-https.get(URL, (res) => {
-  if (res.statusCode !== 200) {
-    console.log(`[bake] HTTP ${res.statusCode}; keeping existing baked`)
-    return
-  }
-  const file = fs.createWriteStream(OUT)
-  res.pipe(file)
-  file.on('finish', () => console.log(`[bake] manifest snapshotted to ${OUT}`))
-}).on('error', (e) => console.log(`[bake] failed: ${e.message}; keeping existing baked`))
+const fs = require("fs");
+const https = require("https");
+const URL = "https://phhq-dash-rkwi.vercel.app/api/manifest";
+const OUT = "src/scene/art/manifest.baked.json";
+https
+  .get(URL, (res) => {
+    if (res.statusCode !== 200) {
+      console.log(`[bake] HTTP ${res.statusCode}; keeping existing baked`);
+      return;
+    }
+    const file = fs.createWriteStream(OUT);
+    res.pipe(file);
+    file.on("finish", () =>
+      console.log(`[bake] manifest snapshotted to ${OUT}`),
+    );
+  })
+  .on("error", (e) =>
+    console.log(`[bake] failed: ${e.message}; keeping existing baked`),
+  );
 ```
 
 Then `"prebuild": "node scripts/bake-manifest.js"`.
