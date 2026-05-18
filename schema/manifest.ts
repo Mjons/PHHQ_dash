@@ -24,12 +24,15 @@ export const Area = z.enum([
 
 export const Piece = z.object({
   id: z.string().min(1),
-  src: z.string().url(),
+  src: z.string().regex(/^https?:\/\/.+/, "must be http(s) URL"),
   aspect: z.number().positive(),
   preferredFrame: FrameKind,
   artist: z.string().optional(),
   title: z.string().optional(),
-  link: z.string().url().optional(),
+  link: z
+    .string()
+    .regex(/^https?:\/\/.+/, "must be http(s) URL")
+    .optional(),
   tags: z.array(z.string()).optional(),
   batch: z.string().optional(),
 });
