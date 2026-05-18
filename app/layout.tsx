@@ -49,6 +49,7 @@ export default async function RootLayout({
             <nav className="bg-cream-dark px-7 flex gap-1 border-b-[3px] border-ink">
               <NavLink href="/">Anchors</NavLink>
               <NavLink href="/map">Map</NavLink>
+              <NavLink href="/pieces">Pieces</NavLink>
               <NavLink href="/import">Import</NavLink>
             </nav>
           </>

@@ -26,3 +26,157 @@ img,
 svg.art {
   image-rendering: pixelated;
 }
+
+/* ── Map view SVG classes ─────────────────────────────────────── */
+.parcel-other {
+  fill: var(--color-cream-dark);
+  stroke: var(--color-muted);
+  stroke-width: 0.2;
+  stroke-dasharray: 1 1;
+  opacity: 0.4;
+}
+.parcel-active {
+  fill: var(--color-cream-dark);
+  stroke: var(--color-ink);
+  stroke-width: 0.5;
+}
+.parcel-atrium-hole {
+  fill: var(--color-cream);
+  stroke: var(--color-coral);
+  stroke-width: 0.5;
+  stroke-dasharray: 1.2 0.8;
+}
+.parcel-bridge {
+  fill: var(--color-gold-light);
+  stroke: var(--color-ink);
+  stroke-width: 0.5;
+  fill-opacity: 0.65;
+}
+.parcel-pathway {
+  fill: var(--color-coral);
+  stroke: var(--color-ink);
+  stroke-width: 0.4;
+  fill-opacity: 0.55;
+}
+.parcel-pathway-shadow {
+  fill: var(--color-coral);
+  stroke: var(--color-coral);
+  stroke-width: 0.2;
+  stroke-dasharray: 0.6 0.4;
+  fill-opacity: 0.12;
+  pointer-events: none;
+}
+.pathway-label {
+  fill: var(--color-ink);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  pointer-events: none;
+}
+.anchor-marker {
+  cursor: pointer;
+  transition: r 0.1s;
+}
+.anchor-marker.filled {
+  fill: var(--color-gold);
+  stroke: var(--color-ink);
+  stroke-width: 0.35;
+}
+.anchor-marker.empty {
+  fill: var(--color-cream);
+  stroke: var(--color-ink);
+  stroke-width: 0.35;
+  stroke-dasharray: 0.6 0.4;
+}
+.anchor-marker.selected {
+  fill: var(--color-coral);
+  stroke-width: 0.5;
+}
+.anchor-marker-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+.placing .anchor-marker,
+.placing .anchor-marker-hit {
+  pointer-events: none;
+}
+.anchor-label {
+  font-size: 1.5px;
+  fill: var(--color-ink);
+  font-weight: 700;
+  pointer-events: none;
+}
+.anchor-facing-arrow {
+  stroke: var(--color-ink);
+  stroke-width: 0.25;
+  fill: none;
+  pointer-events: none;
+}
+.entrance-marker {
+  fill: var(--color-gold);
+  stroke: var(--color-ink);
+  stroke-width: 0.4;
+}
+.entrance-text {
+  fill: var(--color-ink);
+  font-size: 1.8px;
+  font-weight: 900;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.compass-bg {
+  fill: var(--color-ink);
+}
+.compass-text {
+  fill: var(--color-cream);
+  font-size: 3.4px;
+  font-weight: 900;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.compass-arrow {
+  stroke: var(--color-gold);
+  stroke-width: 0.4;
+  fill: var(--color-gold);
+}
+.scale-bar {
+  stroke: var(--color-ink);
+  stroke-width: 0.3;
+}
+.scale-text {
+  fill: var(--color-ink);
+  font-size: 1.6px;
+  font-weight: 700;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.anchor-marker-ghost {
+  fill: var(--color-coral);
+  fill-opacity: 0.35;
+  stroke: var(--color-coral);
+  stroke-width: 0.4;
+  stroke-dasharray: 0.7 0.4;
+  pointer-events: none;
+}
+.anchor-marker-draft {
+  fill: var(--color-coral);
+  stroke: var(--color-ink);
+  stroke-width: 0.5;
+  animation: pulse 1.1s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.anchor-draft-label {
+  fill: var(--color-coral);
+  font-size: 1.8px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  pointer-events: none;
+}

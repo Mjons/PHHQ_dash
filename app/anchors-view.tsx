@@ -7,6 +7,7 @@ import {
   FRAME_LABEL,
   type AnchorT,
   type ManifestT,
+  type PieceT,
 } from "@/schema/manifest";
 import { fetchManifest, saveManifest } from "@/lib/client";
 
@@ -124,7 +125,7 @@ function AnchorCard({
   onChange,
 }: {
   anchor: AnchorT;
-  pieces: { id: string; title?: string; artist?: string }[];
+  pieces: PieceT[];
   saving: boolean;
   onChange: (newPieceId: string | null) => void;
 }) {
@@ -135,22 +136,30 @@ function AnchorCard({
   return (
     <article className="bg-cream border-[3px] border-ink p-3.5 grid grid-cols-[88px_1fr] gap-3.5 shadow-[4px_4px_0_var(--color-ink)] relative">
       <div
-        className={`w-22 h-22 border-2 border-ink relative overflow-hidden flex items-center justify-center ${
+        className={`border-2 border-ink relative overflow-hidden flex items-center justify-center ${
           isEmpty
             ? "bg-[repeating-linear-gradient(45deg,var(--color-cream-dark)_0_8px,var(--color-cream)_8px_16px)]"
             : "bg-cream-dark"
         }`}
         style={{ width: 88, height: 88 }}
       >
-        {isEmpty && (
+        {isEmpty ? (
           <span className="text-[10px] font-black tracking-widest text-muted">
             EMPTY
           </span>
-        )}
-        {!isEmpty && (
-          <span className="absolute top-0.5 left-0.5 bg-gold text-ink font-black text-[10px] px-1 border border-ink">
-            {frameKey}
-          </span>
+        ) : (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={piece.src}
+              alt={piece.title || piece.id}
+              className="max-w-full max-h-full object-contain"
+              style={{ imageRendering: "auto" }}
+            />
+            <span className="absolute top-0.5 left-0.5 bg-gold text-ink font-black text-[10px] px-1 border border-ink">
+              {frameKey}
+            </span>
+          </>
         )}
       </div>
       <div className="flex flex-col gap-1.5 min-w-0">

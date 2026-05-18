@@ -1,0 +1,29 @@
+{
+  "capturedAt": "2026-05-18T11:18:36.884Z",
+  "anchors": [
+    {
+      "id": "f1-cap-1",
+      "area": "f1",
+      "x": 16.25,
+      "z": 24.5,
+      "facing": "E",
+      "maxWidth": 2,
+      "maxHeight": 3,
+      "allowedFrames": ["A"],
+      "pieceId": null,
+      "note": ""
+    },
+    {
+      "id": "f1-cap-2",
+      "area": "f1",
+      "x": 16.25,
+      "z": 41,
+      "facing": "E",
+      "maxWidth": 3.6,
+      "maxHeight": 2,
+      "allowedFrames": ["C"],
+      "pieceId": null,
+      "note": ""
+    }
+  ]
+}

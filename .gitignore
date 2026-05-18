@@ -23,6 +23,9 @@
 # misc
 .DS_Store
 *.pem
+# Windows reserved-name artifact: PowerShell's `> nul` writes a real file
+# named "nul". Turbopack crashes when its CSS pipeline globs it.
+nul
 
 # debug
 npm-debug.log*
