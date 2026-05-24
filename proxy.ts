@@ -11,6 +11,13 @@ import type { NextRequest } from "next/server";
 //
 // Public routes:
 //  - GET /api/manifest is anonymous (the scene fetches it without auth).
+//  - POST /api/manifest/skip is anonymous (the scene's DJ booth posts to it
+//    to advance the playlist; v1 trusts any visitor — see route.ts comment).
+//  - GET /api/tips is anonymous (the scene + tip page poll it without auth).
+//  - GET /api/qr/* serves PNG QR codes used by the scene and tip page.
+//  - POST /api/tips/webhook is the Alchemy callback (verified by signature,
+//    not by session cookie — see app/api/tips/webhook/route.ts).
+//  - /tip/* is the public mobile tip page (visitors arrive without auth).
 //  - /api/auth/* are NextAuth's own handlers.
 //  - /login renders the sign-in form.
 //
@@ -23,8 +30,24 @@ export default function proxy(req: NextRequest) {
   const isLogin = pathname === "/login";
   const isPublicManifestRead =
     req.method === "GET" && pathname === "/api/manifest";
+  const isPublicMusicSkip =
+    req.method === "POST" && pathname === "/api/manifest/skip";
+  const isPublicTipsRead = req.method === "GET" && pathname === "/api/tips";
+  const isPublicQr = req.method === "GET" && pathname.startsWith("/api/qr/");
+  const isPublicTipPage = pathname.startsWith("/tip/");
+  const isTipWebhook =
+    req.method === "POST" && pathname === "/api/tips/webhook";
 
-  if (isAuthRoute || isLogin || isPublicManifestRead) {
+  if (
+    isAuthRoute ||
+    isLogin ||
+    isPublicManifestRead ||
+    isPublicMusicSkip ||
+    isPublicTipsRead ||
+    isPublicQr ||
+    isPublicTipPage ||
+    isTipWebhook
+  ) {
     return NextResponse.next();
   }
 

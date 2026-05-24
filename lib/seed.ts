@@ -7,4 +7,10 @@ export const SEED_MANIFEST: ManifestT = {
   updatedAt: new Date(0).toISOString(),
   pieces: {},
   anchors: [],
+  series: [],
+  bookAnchors: [],
+  tracks: {},
+  nowPlaying: { kind: "off" },
+  vaultResidencies: {},
+  playbackStartedAt: new Date(0).toISOString(),
 };
