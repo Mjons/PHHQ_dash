@@ -1,4 +1,12 @@
 import type { ManifestT } from "@/schema/manifest";
+import type { TipStateMap } from "@/lib/tips";
+
+export async function fetchTipState(): Promise<TipStateMap> {
+  const res = await fetch("/api/tips", { cache: "no-store" });
+  if (!res.ok) throw new Error(`fetchTipState: ${res.status}`);
+  const json = (await res.json()) as { tips: TipStateMap };
+  return json.tips;
+}
 
 export async function fetchManifest(): Promise<ManifestT> {
   const res = await fetch("/api/manifest", { cache: "no-store" });

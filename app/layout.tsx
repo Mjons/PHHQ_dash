@@ -50,6 +50,7 @@ export default async function RootLayout({
               <NavLink href="/">Anchors</NavLink>
               <NavLink href="/map">Map</NavLink>
               <NavLink href="/pieces">Pieces</NavLink>
+              <NavLink href="/vault">Vault</NavLink>
               <NavLink href="/import">Import</NavLink>
             </nav>
           </>
