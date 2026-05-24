@@ -5,6 +5,7 @@ import {
   VAULT_FLOORS,
   VAULT_FLOOR_LABEL,
   type ManifestT,
+  type PieceT,
   type VaultResidencyT,
   type VTFloorT,
 } from "@/schema/manifest";
@@ -13,6 +14,37 @@ import type { TipStateMap, TipStateT } from "@/lib/tips";
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const TIP_POLL_MS = 20_000;
+
+// Auto-generated companion piece for each VaultResidency. The dashboard
+// writes one of these into manifest.pieces every time the curator saves a
+// residency, pointing at the QR endpoint. That way the QR is selectable in
+// the standard anchor piece-picker — the curator can hang it on any wall
+// near the corresponding VT floor without any scene-side specialization.
+//
+// The httpUrl schema validator requires absolute URLs, so we resolve the
+// base from the public env var (set to the prod domain in Vercel; falls
+// back to the production URL in dev to keep things working out of the box).
+const DASHBOARD_BASE_URL =
+  process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "https://phhq-dash-rkwi.vercel.app";
+
+function qrPieceId(floor: VTFloorT): string {
+  return `qr-${floor}`;
+}
+
+function buildQrPiece(floor: VTFloorT, r: VaultResidencyT): PieceT {
+  const displayArtist =
+    r.artistName?.trim() || `Vault Tower ${shortAddr(r.artistWallet)}`;
+  return {
+    id: qrPieceId(floor),
+    src: `${DASHBOARD_BASE_URL}/api/qr/${floor}.png`,
+    aspect: 1,
+    preferredFrame: "A",
+    title: `Tip QR · ${VAULT_FLOOR_LABEL[floor]}`,
+    artist: displayArtist,
+    tags: ["qr", "vault", `floor-${floor}`],
+    batch: "vault-qr",
+  };
+}
 
 function shortAddr(a: string): string {
   if (!a || !ADDRESS_RE.test(a)) return a;
@@ -86,10 +118,14 @@ export default function VaultView() {
   }
 
   async function saveResidency(floor: VTFloorT, r: VaultResidencyT) {
+    const piece = buildQrPiece(floor, r);
     await patchManifest(
       (m) => ({
         ...m,
         vaultResidencies: { ...m.vaultResidencies, [floor]: r },
+        // Always (re-)write the companion QR piece so its title/artist track
+        // any edits the curator made to the residency.
+        pieces: { ...m.pieces, [piece.id]: piece },
       }),
       `floor:${floor}`,
     );
@@ -98,14 +134,28 @@ export default function VaultView() {
   async function removeResidency(floor: VTFloorT) {
     if (
       !confirm(
-        `Remove residency on ${VAULT_FLOOR_LABEL[floor]}? The tip pedestal disappears from the venue and the address is unregistered. Tip activity history is preserved.`,
+        `Remove residency on ${VAULT_FLOOR_LABEL[floor]}? The QR piece disappears from the picker and any anchors using it are unassigned. Tip activity history is preserved.`,
       )
     )
       return;
     await patchManifest((m) => {
-      const rest = { ...m.vaultResidencies };
-      delete rest[floor];
-      return { ...m, vaultResidencies: rest };
+      const pid = qrPieceId(floor);
+      const restResidencies = { ...m.vaultResidencies };
+      delete restResidencies[floor];
+      const restPieces = { ...m.pieces };
+      delete restPieces[pid];
+      // Unassign any anchor that was showing the QR piece — leaving a
+      // dangling pieceId would break the scene's renderer (it'd skip the
+      // anchor with a "missing piece" log).
+      const updatedAnchors = m.anchors.map((a) =>
+        a.pieceId === pid ? { ...a, pieceId: null } : a,
+      );
+      return {
+        ...m,
+        vaultResidencies: restResidencies,
+        pieces: restPieces,
+        anchors: updatedAnchors,
+      };
     }, `floor:${floor}`);
   }
 
@@ -416,23 +466,36 @@ function FloorCard({
       </div>
 
       {isConfigured && (
-        <div className="mt-4 flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-muted">
-          <a
-            href={`/api/qr/${floor}.png`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-ink"
-          >
-            ▢ view pedestal QR
-          </a>
-          <a
-            href={`/tip/${floor}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-ink"
-          >
-            ↗ preview tip page
-          </a>
+        <div className="mt-4 flex flex-col gap-2 text-[10px] font-bold uppercase tracking-widest text-muted">
+          <div className="flex items-center gap-4">
+            <a
+              href={`/api/qr/${floor}.png`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-ink"
+            >
+              ▢ view QR image
+            </a>
+            <a
+              href={`/tip/${floor}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-ink"
+            >
+              ↗ preview tip page
+            </a>
+          </div>
+          <div className="normal-case font-normal tracking-normal leading-snug">
+            Selectable in the anchor picker as{" "}
+            <code className="font-mono text-ink bg-cream-dark/70 px-1 border border-ink/20">
+              qr-{floor}
+            </code>{" "}
+            (tagged{" "}
+            <span className="font-mono text-ink">
+              qr · vault · floor-{floor}
+            </span>
+            ) — hang it on any wall to put tipping in front of visitors.
+          </div>
         </div>
       )}
 
