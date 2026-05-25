@@ -24,12 +24,20 @@ const EXAMPLE_JSON = `{
 }`;
 
 type Result =
-  | { ok: true; added: number; updated: number; total: number; version: number }
+  | {
+      ok: true;
+      added: number;
+      updated: number;
+      skipped: number;
+      total: number;
+      version: number;
+    }
   | { ok: false; message: string; issues?: unknown };
 
 export default function ImportView() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [overwriteExisting, setOverwriteExisting] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [parsedPreview, setParsedPreview] = useState<{
     valid: boolean;
@@ -65,7 +73,7 @@ export default function ImportView() {
     setResult(null);
     try {
       const obj = JSON.parse(text);
-      const res = await postImport(obj);
+      const res = await postImport(obj, { overwriteExisting });
       setResult({ ok: true, ...res });
     } catch (e) {
       setResult({ ok: false, message: String(e) });
@@ -82,8 +90,9 @@ export default function ImportView() {
             Import
           </h1>
           <p className="text-muted text-sm mt-1">
-            Paste capture JSON from the in-scene anchor-capture tool. Existing
-            IDs are updated (positions only); new IDs are added.
+            Paste capture JSON from the in-scene anchor-capture tool. New IDs
+            are added; existing IDs are left alone unless you opt in to
+            overwriting below.
           </p>
         </div>
       </div>
@@ -99,6 +108,23 @@ export default function ImportView() {
         placeholder={EXAMPLE_JSON}
         className="w-full border-2 border-ink bg-cream p-3 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-gold"
       />
+
+      <label className="flex items-center gap-2 mt-4 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={overwriteExisting}
+          onChange={(e) => setOverwriteExisting(e.target.checked)}
+          className="w-4 h-4 accent-coral border-2 border-ink"
+        />
+        <span className="text-sm font-bold uppercase tracking-widest">
+          Overwrite existing anchors
+        </span>
+        <span className="text-xs text-muted normal-case font-normal tracking-normal">
+          {overwriteExisting
+            ? "matching IDs will have their position, area, facing, and size updated (pieceId/note/frames preserved)"
+            : "matching IDs will be skipped — only new anchors are added"}
+        </span>
+      </label>
 
       <div className="flex gap-3 mt-4">
         <button
@@ -140,7 +166,7 @@ export default function ImportView() {
           }`}
         >
           {result.ok
-            ? `✓ Imported · added ${result.added}, updated ${result.updated}, total ${result.total} · manifest v${result.version}`
+            ? `✓ Imported · added ${result.added}, updated ${result.updated}, skipped ${result.skipped}, total ${result.total} · manifest v${result.version}`
             : `✕ ${result.message}`}
         </div>
       )}

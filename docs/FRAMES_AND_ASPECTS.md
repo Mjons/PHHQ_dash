@@ -6,8 +6,8 @@ How the **shape** of an anchor (aspect ratio) and the **style** of its frame (A�
 
 | Axis             | What it controls                      | Picked when                                | Stored on anchor as                   |
 | ---------------- | ------------------------------------- | ------------------------------------------ | ------------------------------------- |
-| **Aspect ratio** | the bounding box the piece fits into  | at capture (cycle key `5`) or in dashboard | `maxWidth`, `maxHeight` (meters)      |
-| **Frame style**  | the visual treatment around the piece | at capture (cycle key `6`) or in dashboard | `allowedFrames` (array of `'A'..'F'`) |
+| **Aspect ratio** | the bounding box the piece fits into  | at capture (cycle key `3`) or in dashboard | `maxWidth`, `maxHeight` (meters)      |
+| **Frame style**  | the visual treatment around the piece | at capture (cycle key `4`) or in dashboard | `allowedFrames` (array of `'A'..'F'`) |
 
 Any frame can wrap any aspect — they're independent. A "Gold" frame can be a square, a portrait, a banner. A "Lightbox" can be wide, tall, or 1:1. The curator picks both.
 
@@ -87,7 +87,7 @@ Six styles defined in [`src/scene/art/frames.ts`](../../../creator-hub/Scenes/Pa
 
 ### At capture time (in-scene, the anchor-capture overlay)
 
-Cycle aspect with `5`, cycle frame with `6`. The live status box shows the current pick:
+Cycle aspect with `3`, cycle frame with `4` (`1` marks, `2` undoes). The live status box shows the current pick:
 
 ```
 → F2 · face S · SNAP ◉

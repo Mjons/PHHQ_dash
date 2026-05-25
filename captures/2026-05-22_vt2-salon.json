@@ -1,0 +1,101 @@
+{
+  "capturedAt": "2026-05-22T00:00:00.000Z",
+  "anchors": [
+    {
+      "id": "vt2-w-1",
+      "area": "vt2",
+      "x": 80.25,
+      "z": 4,
+      "facing": "E",
+      "maxWidth": 5,
+      "maxHeight": 4,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F2 salon hang, west wall (1/4)"
+    },
+    {
+      "id": "vt2-w-2",
+      "area": "vt2",
+      "x": 80.25,
+      "z": 12,
+      "facing": "E",
+      "maxWidth": 5,
+      "maxHeight": 4,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F2 salon hang, west wall (2/4)"
+    },
+    {
+      "id": "vt2-w-3",
+      "area": "vt2",
+      "x": 80.25,
+      "z": 20,
+      "facing": "E",
+      "maxWidth": 5,
+      "maxHeight": 4,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F2 salon hang, west wall (3/4)"
+    },
+    {
+      "id": "vt2-w-4",
+      "area": "vt2",
+      "x": 80.25,
+      "z": 28,
+      "facing": "E",
+      "maxWidth": 5,
+      "maxHeight": 4,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F2 salon hang, west wall (4/4)"
+    },
+    {
+      "id": "vt2-e-1",
+      "area": "vt2",
+      "x": 95.75,
+      "z": 4,
+      "facing": "W",
+      "maxWidth": 5,
+      "maxHeight": 4,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F2 salon hang, east wall (1/4)"
+    },
+    {
+      "id": "vt2-e-2",
+      "area": "vt2",
+      "x": 95.75,
+      "z": 12,
+      "facing": "W",
+      "maxWidth": 5,
+      "maxHeight": 4,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F2 salon hang, east wall (2/4)"
+    },
+    {
+      "id": "vt2-e-3",
+      "area": "vt2",
+      "x": 95.75,
+      "z": 20,
+      "facing": "W",
+      "maxWidth": 5,
+      "maxHeight": 4,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F2 salon hang, east wall (3/4)"
+    },
+    {
+      "id": "vt2-e-4",
+      "area": "vt2",
+      "x": 95.75,
+      "z": 28,
+      "facing": "W",
+      "maxWidth": 5,
+      "maxHeight": 4,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F2 salon hang, east wall (4/4)"
+    }
+  ]
+}

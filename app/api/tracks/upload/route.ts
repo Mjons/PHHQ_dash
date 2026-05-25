@@ -4,13 +4,12 @@ import { auth } from "@/auth";
 
 export const dynamic = "force-dynamic";
 
-const MAX_BYTES = 8 * 1024 * 1024;
+const MAX_BYTES = 20 * 1024 * 1024;
 
 const EXT: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/webp": "webp",
-  "image/gif": "gif",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/ogg": "ogg",
 };
 
 export async function POST(req: Request) {
@@ -31,7 +30,6 @@ export async function POST(req: Request) {
 
   const file = form.get("file");
   const slugRaw = String(form.get("slug") || "").trim();
-  const batchRaw = String(form.get("batch") || "").trim();
 
   if (!(file instanceof File)) {
     return NextResponse.json(
@@ -48,34 +46,25 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  if (batchRaw && !/^[a-z0-9][a-z0-9_-]*$/i.test(batchRaw)) {
-    return NextResponse.json(
-      {
-        error:
-          "batch must start with alphanumeric and contain only a-z, 0-9, _, -",
-      },
-      { status: 400 },
-    );
-  }
   const ext = EXT[file.type];
   if (!ext) {
     return NextResponse.json(
-      { error: `unsupported image type: ${file.type || "unknown"}` },
+      {
+        error: `unsupported audio type: ${file.type || "unknown"} (allow: mp3, m4a, ogg)`,
+      },
       { status: 400 },
     );
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json(
       {
-        error: `file too large (${(file.size / 1024 / 1024).toFixed(1)}MB > 8MB)`,
+        error: `file too large (${(file.size / 1024 / 1024).toFixed(1)}MB > ${MAX_BYTES / 1024 / 1024}MB)`,
       },
       { status: 400 },
     );
   }
 
-  const path = batchRaw
-    ? `pieces/${batchRaw}/${slugRaw}.${ext}`
-    : `pieces/${slugRaw}.${ext}`;
+  const path = `tracks/${slugRaw}.${ext}`;
   const blob = await put(path, file, {
     access: "public",
     contentType: file.type,

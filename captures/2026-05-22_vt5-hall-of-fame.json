@@ -1,0 +1,125 @@
+{
+  "capturedAt": "2026-05-22T00:00:00.000Z",
+  "anchors": [
+    {
+      "id": "vt5-w-1",
+      "area": "vt5",
+      "x": 80.25,
+      "z": 4,
+      "facing": "E",
+      "maxWidth": 3,
+      "maxHeight": 5,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F5 Hall of Fame, west wall portrait (1/4)"
+    },
+    {
+      "id": "vt5-w-2",
+      "area": "vt5",
+      "x": 80.25,
+      "z": 11,
+      "facing": "E",
+      "maxWidth": 3,
+      "maxHeight": 5,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F5 Hall of Fame, west wall portrait (2/4)"
+    },
+    {
+      "id": "vt5-w-3",
+      "area": "vt5",
+      "x": 80.25,
+      "z": 18,
+      "facing": "E",
+      "maxWidth": 3,
+      "maxHeight": 5,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F5 Hall of Fame, west wall portrait (3/4)"
+    },
+    {
+      "id": "vt5-w-4",
+      "area": "vt5",
+      "x": 80.25,
+      "z": 25,
+      "facing": "E",
+      "maxWidth": 3,
+      "maxHeight": 5,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F5 Hall of Fame, west wall portrait (4/4)"
+    },
+    {
+      "id": "vt5-e-1",
+      "area": "vt5",
+      "x": 95.75,
+      "z": 4,
+      "facing": "W",
+      "maxWidth": 3,
+      "maxHeight": 5,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F5 Hall of Fame, east wall portrait (1/4)"
+    },
+    {
+      "id": "vt5-e-2",
+      "area": "vt5",
+      "x": 95.75,
+      "z": 11,
+      "facing": "W",
+      "maxWidth": 3,
+      "maxHeight": 5,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F5 Hall of Fame, east wall portrait (2/4)"
+    },
+    {
+      "id": "vt5-e-3",
+      "area": "vt5",
+      "x": 95.75,
+      "z": 18,
+      "facing": "W",
+      "maxWidth": 3,
+      "maxHeight": 5,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F5 Hall of Fame, east wall portrait (3/4)"
+    },
+    {
+      "id": "vt5-e-4",
+      "area": "vt5",
+      "x": 95.75,
+      "z": 25,
+      "facing": "W",
+      "maxWidth": 3,
+      "maxHeight": 5,
+      "allowedFrames": ["A", "B"],
+      "pieceId": null,
+      "note": "VT F5 Hall of Fame, east wall portrait (4/4)"
+    },
+    {
+      "id": "vt5-n-1",
+      "area": "vt5",
+      "x": 88,
+      "z": 0.25,
+      "facing": "N",
+      "maxWidth": 10,
+      "maxHeight": 3,
+      "allowedFrames": ["F", "A"],
+      "pieceId": null,
+      "note": "VT F5 Hall of Fame, north wall banner"
+    },
+    {
+      "id": "vt5-s-1",
+      "area": "vt5",
+      "x": 88,
+      "z": 31.75,
+      "facing": "S",
+      "maxWidth": 10,
+      "maxHeight": 3,
+      "allowedFrames": ["F", "A"],
+      "pieceId": null,
+      "note": "VT F5 Hall of Fame, south wall banner"
+    }
+  ]
+}

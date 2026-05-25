@@ -193,6 +193,30 @@ export const FLOORS: Record<AreaT, Floor> = {
   },
 };
 
+const PARCEL_M = 16;
+
+// True if (x, z) falls inside any parcel (or bridge / skywalk pathway) of the
+// given area. Used by bulk nudge to refuse moves that would slide an anchor
+// off the floor. Parcels are authoritative — F3's missing center parcel is
+// already excluded by FLOORS.f3.parcels, so the atrium void requires no extra
+// hole check.
+export function isInArea(area: AreaT, x: number, z: number): boolean {
+  const floor = FLOORS[area];
+  for (const [px, pz] of floor.parcels) {
+    if (x >= px && x <= px + PARCEL_M && z >= pz && z <= pz + PARCEL_M)
+      return true;
+  }
+  for (const b of floor.bridges ?? []) {
+    if (x >= b.x && x <= b.x + b.width && z >= b.z && z <= b.z + b.height)
+      return true;
+  }
+  for (const p of floor.pathways ?? []) {
+    if (x >= p.x && x <= p.x + p.width && z >= p.z && z <= p.z + p.height)
+      return true;
+  }
+  return false;
+}
+
 export const ASPECT_PRESETS: ReadonlyArray<{
   label: string;
   w: number;
