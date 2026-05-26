@@ -93,10 +93,13 @@ export async function POST(req: Request) {
       ? `books/${series}/cover.${ext}`
       : `books/${series}/${episode}/${kind}.${ext}`;
 
+  // 1-year client + CDN cache — see pieces/upload route for the rationale
+  // and the `allowOverwrite` caveat.
   const blob = await put(path, file, {
     access: "public",
     contentType: file.type,
     allowOverwrite: true,
+    cacheControlMaxAge: 31536000,
   });
 
   return NextResponse.json({

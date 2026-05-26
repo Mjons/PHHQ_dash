@@ -76,10 +76,19 @@ export async function POST(req: Request) {
   const path = batchRaw
     ? `pieces/${batchRaw}/${slugRaw}.${ext}`
     : `pieces/${slugRaw}.${ext}`;
+  // 1-year client + CDN cache. Pieces in v1 are effectively immutable —
+  // curators get a new slug when uploading a new file. With
+  // `allowOverwrite: true`, a same-slug re-upload writes new bytes but the
+  // URL is unchanged, so visitor caches will keep serving the OLD content
+  // for up to a year. If a curator needs an immediate refresh, the path is
+  // upload under a new slug and repoint the anchor, not overwrite in place.
+  // Trade-off accepted to cap repeat-visit blob egress (see Vercel Blob
+  // 10GB/mo Hobby ceiling — burned through in 8 days without this).
   const blob = await put(path, file, {
     access: "public",
     contentType: file.type,
     allowOverwrite: true,
+    cacheControlMaxAge: 31536000,
   });
 
   return NextResponse.json({

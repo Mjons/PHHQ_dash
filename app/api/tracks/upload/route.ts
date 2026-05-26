@@ -65,10 +65,15 @@ export async function POST(req: Request) {
   }
 
   const path = `tracks/${slugRaw}.${ext}`;
+  // 1-year client + CDN cache — see pieces/upload route for the rationale
+  // and the `allowOverwrite` caveat. Tracks especially benefit: a single
+  // playlist cycle re-fetches every track via DCL's AudioStream, so any
+  // intermediary that respects HTTP caching avoids the repeat draw.
   const blob = await put(path, file, {
     access: "public",
     contentType: file.type,
     allowOverwrite: true,
+    cacheControlMaxAge: 31536000,
   });
 
   return NextResponse.json({
