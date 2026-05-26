@@ -15,6 +15,7 @@ import {
   type PieceT,
 } from "@/schema/manifest";
 import { fetchManifest, saveManifest } from "@/lib/client";
+import { isVideoPiece } from "@/lib/pieces";
 import {
   parseTagsInput,
   passesTagFilter,
@@ -2015,13 +2016,25 @@ function AnchorPreview({
       >
         {piece ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={piece.src}
-              alt={piece.title || piece.id}
-              className="max-w-full max-h-full object-contain pointer-events-none"
-              style={{ imageRendering: "auto" }}
-            />
+            {isVideoPiece(piece) ? (
+              <video
+                src={piece.src}
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="max-w-full max-h-full object-contain pointer-events-none"
+                aria-label={piece.title || piece.id}
+              />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={piece.src}
+                alt={piece.title || piece.id}
+                className="max-w-full max-h-full object-contain pointer-events-none"
+                style={{ imageRendering: "auto" }}
+              />
+            )}
             <span className="absolute top-1 left-1 bg-gold text-ink font-black text-[10px] px-1.5 py-0.5 border border-ink pointer-events-none">
               {frameKey}
             </span>

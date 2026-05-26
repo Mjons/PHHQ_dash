@@ -41,6 +41,13 @@ const ethAddress = z
 export const Piece = z.object({
   id: z.string().min(1),
   src: httpUrl,
+  // Still poster used by the scene when `src` is a video file (e.g. SuperRare
+  // signed `.mp4`) or any other format the in-scene texture loader can't
+  // decode. Dashboard previews always use `src` (so the curator sees the
+  // motion in the picker); the scene reads `poster ?? src`. Required in
+  // practice for any piece a curator places in-room with a video src —
+  // without it, the scene errors out on texture load. See docs/SCENE_VIDEO_POSTER.md.
+  poster: httpUrl.optional(),
   aspect: z.number().positive(),
   preferredFrame: FrameKind,
   artist: z.string().optional(),

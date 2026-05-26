@@ -11,6 +11,7 @@ import {
   type PieceT,
 } from "@/schema/manifest";
 import { fetchManifest, saveManifest } from "@/lib/client";
+import { isVideoPiece } from "@/lib/pieces";
 import {
   parseTagsInput,
   passesTagFilter,
@@ -25,6 +26,17 @@ const NUDGE_STEP = 0.25;
 const FACING_CYCLE: FacingT[] = ["N", "E", "S", "W"];
 const nextFacing = (f: FacingT): FacingT =>
   FACING_CYCLE[(FACING_CYCLE.indexOf(f) + 1) % FACING_CYCLE.length];
+
+// Pretty-print a URL's hostname for the link chip. `new URL()` would throw on
+// validation-passed-but-malformed strings (the regex in schema/manifest.ts is
+// loose); fall back to the raw string so the chip never crashes the card.
+function hostFromUrl(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
 
 export default function AnchorsView() {
   const [manifest, setManifest] = useState<ManifestT | null>(null);
@@ -123,6 +135,36 @@ export default function AnchorsView() {
     }
   }
 
+  // Patch a piece in-place. Used by the AnchorCard link editor — link lives on
+  // the piece, not the anchor, so changes propagate to every anchor that
+  // references the same piece. `savingFor` is keyed to the anchor that opened
+  // the editor so the per-card spinner still works.
+  async function patchPiece(
+    pieceId: string,
+    patch: Partial<PieceT>,
+    busyAnchorId: string,
+  ) {
+    if (!manifest) return;
+    const current = manifest.pieces[pieceId];
+    if (!current) return;
+    const next: ManifestT = {
+      ...manifest,
+      pieces: { ...manifest.pieces, [pieceId]: { ...current, ...patch } },
+    };
+    setSavingFor(busyAnchorId);
+    setError(null);
+    try {
+      const saved = await saveManifest(next);
+      setManifest(saved);
+      setSavedToast(`Saved · v${saved.version}`);
+      setTimeout(() => setSavedToast(null), 1800);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSavingFor(null);
+    }
+  }
+
   async function deleteAnchor(anchorId: string) {
     if (!manifest) return;
     if (!confirm(`Delete anchor "${anchorId}"? This cannot be undone.`)) return;
@@ -186,8 +228,17 @@ export default function AnchorsView() {
                   pieceTags={
                     a.pieceId ? (manifest.pieces[a.pieceId]?.tags ?? []) : []
                   }
+                  sharedAnchorCount={
+                    a.pieceId
+                      ? manifest.anchors.filter((x) => x.pieceId === a.pieceId)
+                          .length
+                      : 0
+                  }
                   saving={savingFor === a.id}
                   onPatch={(patch) => patchAnchor(a.id, patch)}
+                  onPatchPiece={(patch) =>
+                    a.pieceId && patchPiece(a.pieceId, patch, a.id)
+                  }
                   onDelete={() => deleteAnchor(a.id)}
                   onOpenPicker={() => setPickerForAnchorId(a.id)}
                 />
@@ -243,16 +294,20 @@ function AnchorCard({
   anchor,
   pieces,
   pieceTags,
+  sharedAnchorCount,
   saving,
   onPatch,
+  onPatchPiece,
   onDelete,
   onOpenPicker,
 }: {
   anchor: AnchorT;
   pieces: PieceT[];
   pieceTags: string[];
+  sharedAnchorCount: number;
   saving: boolean;
   onPatch: (patch: Partial<AnchorT>) => void;
+  onPatchPiece: (patch: Partial<PieceT>) => void;
   onDelete: () => void;
   onOpenPicker: () => void;
 }) {
@@ -261,6 +316,14 @@ function AnchorCard({
   const frameKey = anchor.allowedFrames?.[0] ?? "A";
   const [editingTags, setEditingTags] = useState(false);
   const [tagsInput, setTagsInput] = useState("");
+  const [editingLink, setEditingLink] = useState(false);
+  const [linkInput, setLinkInput] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [editingPoster, setEditingPoster] = useState(false);
+  const [posterInput, setPosterInput] = useState("");
+  const [posterError, setPosterError] = useState<string | null>(null);
+  const isVideo = piece ? isVideoPiece(piece) : false;
+  const needsPoster = isVideo && !piece?.poster;
 
   function startEditTags() {
     setTagsInput(tagsToInput(anchor.tags));
@@ -275,6 +338,64 @@ function AnchorCard({
       next.every((t, i) => t.toLowerCase() === current[i]?.toLowerCase());
     setEditingTags(false);
     if (!same) onPatch({ tags: next.length ? next : undefined });
+  }
+
+  function startEditLink() {
+    setLinkInput(piece?.link ?? "");
+    setLinkError(null);
+    setEditingLink(true);
+  }
+
+  function commitLink() {
+    if (!piece) {
+      setEditingLink(false);
+      return;
+    }
+    const trimmed = linkInput.trim();
+    // Empty string = clear the link. Matches the optional-field semantics on
+    // Piece.link — set to undefined so it disappears from the manifest.
+    if (trimmed === "") {
+      setEditingLink(false);
+      setLinkError(null);
+      if (piece.link !== undefined) onPatchPiece({ link: undefined });
+      return;
+    }
+    // Same regex as the schema's `httpUrl` — keep this in sync with
+    // schema/manifest.ts so the dashboard rejects what the server would reject.
+    if (!/^https?:\/\/.+/.test(trimmed)) {
+      setLinkError("must be http(s) URL");
+      return;
+    }
+    setEditingLink(false);
+    setLinkError(null);
+    if (trimmed !== piece.link) onPatchPiece({ link: trimmed });
+  }
+
+  function startEditPoster() {
+    setPosterInput(piece?.poster ?? "");
+    setPosterError(null);
+    setEditingPoster(true);
+  }
+
+  function commitPoster() {
+    if (!piece) {
+      setEditingPoster(false);
+      return;
+    }
+    const trimmed = posterInput.trim();
+    if (trimmed === "") {
+      setEditingPoster(false);
+      setPosterError(null);
+      if (piece.poster !== undefined) onPatchPiece({ poster: undefined });
+      return;
+    }
+    if (!/^https?:\/\/.+/.test(trimmed)) {
+      setPosterError("must be http(s) URL");
+      return;
+    }
+    setEditingPoster(false);
+    setPosterError(null);
+    if (trimmed !== piece.poster) onPatchPiece({ poster: trimmed });
   }
 
   return (
@@ -307,13 +428,25 @@ function AnchorCard({
           </span>
         ) : (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={piece.src}
-              alt={piece.title || piece.id}
-              className="max-w-full max-h-full object-contain"
-              style={{ imageRendering: "auto" }}
-            />
+            {isVideoPiece(piece) ? (
+              <video
+                src={piece.src}
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="max-w-full max-h-full object-contain"
+                aria-label={piece.title || piece.id}
+              />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={piece.src}
+                alt={piece.title || piece.id}
+                className="max-w-full max-h-full object-contain"
+                style={{ imageRendering: "auto" }}
+              />
+            )}
             <span className="absolute top-0.5 left-0.5 bg-gold text-ink font-black text-[10px] px-1 border border-ink">
               {frameKey}
             </span>
@@ -461,6 +594,143 @@ function AnchorCard({
             </span>
           )}
         </button>
+        {piece && (
+          <div className="flex items-start gap-1.5 mt-0.5">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted pt-0.5">
+              Link
+            </span>
+            {editingLink ? (
+              <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                <input
+                  autoFocus
+                  type="text"
+                  value={linkInput}
+                  onChange={(e) => {
+                    setLinkInput(e.target.value);
+                    if (linkError) setLinkError(null);
+                  }}
+                  onBlur={commitLink}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                    if (e.key === "Escape") {
+                      setEditingLink(false);
+                      setLinkError(null);
+                    }
+                  }}
+                  placeholder="https://superrare.com/…"
+                  className={`w-full text-[10px] p-1 border bg-cream font-mono ${
+                    linkError ? "border-coral" : "border-ink"
+                  }`}
+                />
+                {linkError && (
+                  <span className="text-[10px] text-coral font-bold">
+                    {linkError}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={startEditLink}
+                disabled={saving}
+                className="flex-1 min-w-0 text-left disabled:opacity-40 flex items-center gap-1.5 flex-wrap"
+                title={
+                  piece.link
+                    ? "Click to edit external link"
+                    : "Click to add external link"
+                }
+              >
+                {piece.link ? (
+                  <>
+                    <span className="inline-block max-w-full truncate bg-cream-dark border border-muted px-1.5 py-0.5 text-[10px] font-mono">
+                      🔗 {hostFromUrl(piece.link)}
+                    </span>
+                    {sharedAnchorCount > 1 && (
+                      <span
+                        className="text-[9px] text-muted italic"
+                        title="This piece is referenced by multiple anchors — editing the link updates all of them."
+                      >
+                        shared · {sharedAnchorCount}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-[10px] italic text-muted underline decoration-dotted">
+                    + add link
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+        )}
+        {piece && isVideo && (
+          <div className="flex items-start gap-1.5 mt-0.5">
+            <span
+              className={`text-[9px] font-bold uppercase tracking-widest pt-0.5 ${
+                needsPoster ? "text-coral" : "text-muted"
+              }`}
+              title={
+                needsPoster
+                  ? "Video piece without a poster will fail to load in the scene"
+                  : undefined
+              }
+            >
+              {needsPoster ? "Poster ⚠" : "Poster"}
+            </span>
+            {editingPoster ? (
+              <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                <input
+                  autoFocus
+                  type="text"
+                  value={posterInput}
+                  onChange={(e) => {
+                    setPosterInput(e.target.value);
+                    if (posterError) setPosterError(null);
+                  }}
+                  onBlur={commitPoster}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                    if (e.key === "Escape") {
+                      setEditingPoster(false);
+                      setPosterError(null);
+                    }
+                  }}
+                  placeholder="https://…/still.jpg"
+                  className={`w-full text-[10px] p-1 border bg-cream font-mono ${
+                    posterError ? "border-coral" : "border-ink"
+                  }`}
+                />
+                {posterError && (
+                  <span className="text-[10px] text-coral font-bold">
+                    {posterError}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={startEditPoster}
+                disabled={saving}
+                className="flex-1 min-w-0 text-left disabled:opacity-40 flex items-center gap-1.5 flex-wrap"
+                title={
+                  piece.poster
+                    ? "Click to edit the in-scene poster URL"
+                    : "Video pieces need a still poster URL — the scene can't decode mp4"
+                }
+              >
+                {piece.poster ? (
+                  <span className="inline-block max-w-full truncate bg-cream-dark border border-muted px-1.5 py-0.5 text-[10px] font-mono">
+                    🖼 {hostFromUrl(piece.poster)}
+                  </span>
+                ) : (
+                  <span className="text-[10px] italic text-coral underline decoration-dotted font-bold">
+                    + add poster (required)
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+        )}
         <div className="flex items-start gap-1.5 mt-0.5">
           <span className="text-[9px] font-bold uppercase tracking-widest text-muted pt-0.5">
             Tags

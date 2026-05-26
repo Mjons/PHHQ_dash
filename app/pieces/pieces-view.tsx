@@ -35,6 +35,7 @@ type RowField =
   | "preferredFrame"
   | "batch"
   | "link"
+  | "poster"
   | "tags";
 
 type Touched = Partial<Record<RowField, true>>;
@@ -51,6 +52,7 @@ type Row = {
   preferredFrame: FrameKindT;
   batch: string;
   link: string;
+  poster: string;
   tags: string;
   touched: Touched;
   status: "pending" | "uploading" | "done" | "error";
@@ -174,6 +176,7 @@ export default function PiecesView() {
       preferredFrame: header.preferredFrame,
       batch: header.batch,
       link: "",
+      poster: "",
       tags: header.tags,
       touched: {},
       status: "pending",
@@ -320,6 +323,7 @@ export default function PiecesView() {
       ...(r.title.trim() ? { title: r.title.trim() } : {}),
       ...(r.artist.trim() ? { artist: r.artist.trim() } : {}),
       ...(r.link.trim() ? { link: r.link.trim() } : {}),
+      ...(r.poster.trim() ? { poster: r.poster.trim() } : {}),
       ...(r.batch.trim() ? { batch: r.batch.trim() } : {}),
       ...(tags.length ? { tags } : {}),
     };
@@ -1182,7 +1186,7 @@ function FullRow({
       </Field>
       <details className="text-xs">
         <summary className="cursor-pointer text-muted uppercase tracking-widest font-bold text-[10px] py-1 hover:text-ink">
-          More options (batch, link, tags)
+          More options (batch, link, poster, tags)
         </summary>
         <div className="flex flex-col gap-2.5 mt-2 pl-1 border-l-2 border-cream-dark">
           <Field label="Batch (folder/show)" hint="groups pieces in the list">
@@ -1200,6 +1204,18 @@ function FullRow({
               value={row.link}
               onChange={(e) => onUpdate("link", e.target.value)}
               placeholder="https://artist.com/work"
+              className="w-full text-sm p-1.5 border-2 border-ink bg-cream focus:outline-none focus:ring-2 focus:ring-gold"
+            />
+          </Field>
+          <Field
+            label="Poster (still URL)"
+            hint="required for video pieces — scene can't decode mp4"
+          >
+            <input
+              type="text"
+              value={row.poster}
+              onChange={(e) => onUpdate("poster", e.target.value)}
+              placeholder="https://…/still.jpg"
               className="w-full text-sm p-1.5 border-2 border-ink bg-cream focus:outline-none focus:ring-2 focus:ring-gold"
             />
           </Field>

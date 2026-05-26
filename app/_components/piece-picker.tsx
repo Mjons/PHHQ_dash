@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FRAME_LABEL, type PieceT } from "@/schema/manifest";
 import { passesTagFilter, type TagFilterState } from "@/lib/tags";
+import { isVideoPiece } from "@/lib/pieces";
 import { TagFilterBar } from "./tag-filter-bar";
 
 // Tolerance for the aspect filter — anchor and piece aspects within ±10%
@@ -187,16 +188,37 @@ export function PiecePicker({
                     title={`${p.title || p.id}${p.artist ? ` — ${p.artist}` : ""}`}
                   >
                     <div
-                      className="bg-cream-dark border-b-2 border-ink overflow-hidden flex items-center justify-center"
+                      className="bg-cream-dark border-b-2 border-ink overflow-hidden flex items-center justify-center relative"
                       style={{ aspectRatio: p.aspect }}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={p.src}
-                        alt={p.title || p.id}
-                        className="max-w-full max-h-full object-contain"
-                        loading="lazy"
-                      />
+                      {isVideoPiece(p) ? (
+                        <video
+                          src={p.src}
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          className="max-w-full max-h-full object-contain"
+                          aria-label={p.title || p.id}
+                        />
+                      ) : (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={p.src}
+                          alt={p.title || p.id}
+                          className="max-w-full max-h-full object-contain"
+                          loading="lazy"
+                        />
+                      )}
+                      {p.link && (
+                        <span
+                          className="absolute top-1 right-1 bg-gold text-ink text-[10px] font-black px-1 border border-ink leading-none py-0.5"
+                          title={`has external link: ${p.link}`}
+                          aria-label="has external link"
+                        >
+                          🔗
+                        </span>
+                      )}
                     </div>
                     <div className="p-2 flex flex-col gap-0.5">
                       <div className="text-xs font-bold truncate">
