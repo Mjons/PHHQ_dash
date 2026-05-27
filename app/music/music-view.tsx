@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ManifestT, NowPlayingT, TrackT } from "@/schema/manifest";
+import type {
+  ManifestT,
+  NowPlayingT,
+  PlaylistT,
+  TrackT,
+} from "@/schema/manifest";
 import { fetchManifest, saveManifest, uploadTrack } from "@/lib/client";
 import { isValidSlug, slugifyFilename } from "@/lib/upload-queue";
 
@@ -120,6 +125,36 @@ export default function MusicView() {
     await patchManifest((m) => ({ ...m, nowPlaying: np }), "nowPlaying");
   }
 
+  async function savePlaylist(pl: PlaylistT) {
+    await patchManifest(
+      (m) => ({ ...m, playlists: { ...m.playlists, [pl.id]: pl } }),
+      `playlist:${pl.id}`,
+    );
+  }
+
+  async function deletePlaylist(id: string) {
+    if (!manifest) return;
+    const pl = manifest.playlists[id];
+    if (!pl) return;
+    const np = manifest.nowPlaying;
+    if (np.kind === "playlist" && np.playlistId === id) {
+      alert(
+        `"${pl.name}" is the playlist currently selected as Now Playing. Switch to a different playlist or mode before deleting.`,
+      );
+      return;
+    }
+    if (
+      !confirm(`Delete playlist "${pl.name}"? Tracks themselves stay safe.`)
+    ) {
+      return;
+    }
+    await patchManifest((m) => {
+      const rest = { ...m.playlists };
+      delete rest[id];
+      return { ...m, playlists: rest };
+    }, `playlist:${id}`);
+  }
+
   if (error && !manifest) {
     return (
       <div className="max-w-5xl mx-auto p-8">
@@ -141,6 +176,9 @@ export default function MusicView() {
   const trackList = Object.values(manifest.tracks ?? {}).sort((a, b) =>
     a.title.localeCompare(b.title),
   );
+  const playlistList = Object.values(manifest.playlists ?? {}).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 
   return (
     <div className="max-w-5xl mx-auto px-7 py-8 pb-24">
@@ -157,8 +195,19 @@ export default function MusicView() {
       <NowPlayingPanel
         nowPlaying={manifest.nowPlaying}
         tracks={trackList}
+        playlists={playlistList}
         saving={savingFor === "nowPlaying"}
         onSave={saveNowPlaying}
+      />
+
+      <PlaylistsPanel
+        playlists={playlistList}
+        tracks={trackList}
+        tracksById={manifest.tracks}
+        existingIds={new Set(Object.keys(manifest.playlists))}
+        savingFor={savingFor}
+        onSave={savePlaylist}
+        onDelete={deletePlaylist}
       />
 
       <UploadPanel
@@ -239,11 +288,13 @@ export default function MusicView() {
 function NowPlayingPanel({
   nowPlaying,
   tracks,
+  playlists,
   saving,
   onSave,
 }: {
   nowPlaying: NowPlayingT;
   tracks: TrackT[];
+  playlists: PlaylistT[];
   saving: boolean;
   onSave: (np: NowPlayingT) => Promise<void>;
 }) {
@@ -256,6 +307,10 @@ function NowPlayingPanel({
   );
   const [playlistLoop, setPlaylistLoop] = useState<boolean>(
     nowPlaying.kind === "playlist" ? nowPlaying.loop : true,
+  );
+  // "" sentinel = "all tracks alphabetical" (legacy behavior, no playlistId).
+  const [playlistId, setPlaylistId] = useState<string>(
+    nowPlaying.kind === "playlist" ? (nowPlaying.playlistId ?? "") : "",
   );
   const [streamUrl, setStreamUrl] = useState<string>(
     nowPlaying.kind === "stream" ? nowPlaying.streamUrl : "",
@@ -272,12 +327,18 @@ function NowPlayingPanel({
         setTrackId(nowPlaying.trackId);
         setTrackLoop(nowPlaying.loop);
       }
-      if (nowPlaying.kind === "playlist") setPlaylistLoop(nowPlaying.loop);
+      if (nowPlaying.kind === "playlist") {
+        setPlaylistLoop(nowPlaying.loop);
+        setPlaylistId(nowPlaying.playlistId ?? "");
+      }
       if (nowPlaying.kind === "stream") setStreamUrl(nowPlaying.streamUrl);
     });
   }, [nowPlaying]);
 
   const selectedTrack = tracks.find((t) => t.id === trackId);
+  const selectedPlaylist = playlistId
+    ? playlists.find((p) => p.id === playlistId)
+    : null;
 
   const draft: NowPlayingT | null =
     kind === "off"
@@ -285,7 +346,11 @@ function NowPlayingPanel({
       : kind === "track" && trackId
         ? { kind: "track", trackId, loop: trackLoop }
         : kind === "playlist"
-          ? { kind: "playlist", loop: playlistLoop }
+          ? {
+              kind: "playlist",
+              loop: playlistLoop,
+              ...(playlistId ? { playlistId } : {}),
+            }
           : kind === "stream" && /^https?:\/\/.+/.test(streamUrl)
             ? { kind: "stream", streamUrl }
             : null;
@@ -293,13 +358,23 @@ function NowPlayingPanel({
   const dirty =
     draft !== null && JSON.stringify(draft) !== JSON.stringify(nowPlaying);
 
+  function playlistLabel(np: NowPlayingT & { kind: "playlist" }): string {
+    if (np.playlistId) {
+      const pl = playlists.find((p) => p.id === np.playlistId);
+      if (pl)
+        return `Playlist · ${pl.name} · ${pl.trackIds.length} track${pl.trackIds.length === 1 ? "" : "s"}`;
+      return `Playlist · ${np.playlistId} (missing)`;
+    }
+    return `Playlist · all ${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
+  }
+
   const currentLabel =
     nowPlaying.kind === "off"
       ? "Off — silence in the venue"
       : nowPlaying.kind === "track"
         ? `Track · ${tracks.find((t) => t.id === nowPlaying.trackId)?.title ?? nowPlaying.trackId}${nowPlaying.loop ? " · looping" : ""}`
         : nowPlaying.kind === "playlist"
-          ? `Playlist · ${tracks.length} track${tracks.length === 1 ? "" : "s"}${nowPlaying.loop ? " · looping" : ""}`
+          ? `${playlistLabel(nowPlaying)}${nowPlaying.loop ? " · looping" : ""}`
           : `Live stream · ${nowPlaying.streamUrl}`;
 
   return (
@@ -385,47 +460,104 @@ function NowPlayingPanel({
         </div>
       )}
 
-      {kind === "playlist" && (
-        <div className="flex flex-col gap-3 mb-4">
-          <div className="border-2 border-ink bg-cream-dark/40 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2">
-              Playlist order (alphabetical by title)
-            </div>
-            <ol className="flex flex-col gap-1 text-xs">
-              {tracks.map((t, i) => (
-                <li key={t.id} className="flex items-baseline gap-2 font-mono">
-                  <span className="text-muted tabular-nums w-5 text-right">
-                    {i + 1}.
+      {kind === "playlist" &&
+        (() => {
+          const displayTracks: TrackT[] = selectedPlaylist
+            ? (selectedPlaylist.trackIds
+                .map((id) => tracks.find((t) => t.id === id))
+                .filter(Boolean) as TrackT[])
+            : tracks;
+          const missing = selectedPlaylist
+            ? selectedPlaylist.trackIds.filter(
+                (id) => !tracks.some((t) => t.id === id),
+              )
+            : [];
+          return (
+            <div className="flex flex-col gap-3 mb-4">
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                  Which playlist?
+                </span>
+                <select
+                  value={playlistId}
+                  onChange={(e) => setPlaylistId(e.target.value)}
+                  className="text-sm p-2 border-2 border-ink bg-cream focus:outline-none focus:ring-2 focus:ring-gold"
+                >
+                  <option value="">— All tracks (alphabetical) —</option>
+                  {playlists.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.trackIds.length})
+                    </option>
+                  ))}
+                </select>
+                {playlists.length === 0 && (
+                  <span className="text-[10px] text-muted italic mt-1">
+                    No named playlists yet. Create one in the Playlists section
+                    below, or leave this set to “All tracks”.
                   </span>
-                  <span className="font-bold truncate">{t.title}</span>
-                  {t.artist && (
-                    <span className="text-muted truncate">— {t.artist}</span>
-                  )}
-                  {t.durationSec && (
-                    <span className="text-muted ml-auto flex-none">
-                      {formatDuration(t.durationSec)}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={playlistLoop}
-              onChange={(e) => setPlaylistLoop(e.target.checked)}
-              className="w-4 h-4 accent-gold"
-            />
-            <span className="text-xs font-bold uppercase tracking-widest">
-              Loop the playlist
-            </span>
-            <span className="text-[10px] text-muted normal-case font-normal tracking-normal">
-              (when the last track ends, restart from the first)
-            </span>
-          </label>
-        </div>
-      )}
+                )}
+              </label>
+              <div className="border-2 border-ink bg-cream-dark/40 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2">
+                  Playlist order{" "}
+                  {selectedPlaylist
+                    ? `(${selectedPlaylist.name})`
+                    : "(alphabetical by title)"}
+                </div>
+                {displayTracks.length === 0 ? (
+                  <div className="text-[11px] italic text-muted">
+                    This playlist is empty — add tracks to it below.
+                  </div>
+                ) : (
+                  <ol className="flex flex-col gap-1 text-xs">
+                    {displayTracks.map((t, i) => (
+                      <li
+                        key={t.id}
+                        className="flex items-baseline gap-2 font-mono"
+                      >
+                        <span className="text-muted tabular-nums w-5 text-right">
+                          {i + 1}.
+                        </span>
+                        <span className="font-bold truncate">{t.title}</span>
+                        {t.artist && (
+                          <span className="text-muted truncate">
+                            — {t.artist}
+                          </span>
+                        )}
+                        {t.durationSec && (
+                          <span className="text-muted ml-auto flex-none">
+                            {formatDuration(t.durationSec)}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                {missing.length > 0 && (
+                  <div className="text-[10px] text-coral font-bold mt-2">
+                    {missing.length} track{missing.length === 1 ? "" : "s"} in
+                    this playlist no longer exist in the library and will be
+                    skipped: {missing.join(", ")}
+                  </div>
+                )}
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={playlistLoop}
+                  onChange={(e) => setPlaylistLoop(e.target.checked)}
+                  className="w-4 h-4 accent-gold"
+                />
+                <span className="text-xs font-bold uppercase tracking-widest">
+                  Loop the playlist
+                </span>
+                <span className="text-[10px] text-muted normal-case font-normal tracking-normal">
+                  (when the last track ends, restart from the first)
+                </span>
+              </label>
+            </div>
+          );
+        })()}
 
       {kind === "stream" && (
         <div className="flex flex-col gap-3 mb-4">
@@ -830,6 +962,414 @@ function TrackRow({
           × delete
         </button>
       </div>
+    </article>
+  );
+}
+
+// =========================================================
+// Playlists — named ordered groups of tracks
+// =========================================================
+
+function slugifyPlaylistName(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "playlist"
+  );
+}
+
+function uniquePlaylistId(base: string, existing: Set<string>): string {
+  if (!existing.has(base)) return base;
+  for (let i = 2; i < 1000; i++) {
+    const candidate = `${base}-${i}`;
+    if (!existing.has(candidate)) return candidate;
+  }
+  return `${base}-${Date.now()}`;
+}
+
+function PlaylistsPanel({
+  playlists,
+  tracks,
+  tracksById,
+  existingIds,
+  savingFor,
+  onSave,
+  onDelete,
+}: {
+  playlists: PlaylistT[];
+  tracks: TrackT[];
+  tracksById: Record<string, TrackT>;
+  existingIds: Set<string>;
+  savingFor: string | null;
+  onSave: (pl: PlaylistT) => Promise<void>;
+  onDelete: (id: string) => void;
+}) {
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  async function createPlaylist() {
+    const name = newName.trim();
+    if (!name) return;
+    const id = uniquePlaylistId(slugifyPlaylistName(name), existingIds);
+    setCreating(true);
+    try {
+      await onSave({ id, name, trackIds: [] });
+      setNewName("");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <section className="bg-cream border-[3px] border-ink shadow-[4px_4px_0_var(--color-ink)] p-5 mb-8">
+      <div className="flex items-baseline justify-between gap-4 mb-4">
+        <h2 className="text-xl font-black uppercase tracking-widest">
+          Playlists
+        </h2>
+        <span className="text-xs font-mono text-muted">
+          {playlists.length} playlist{playlists.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2 mb-5">
+        <label className="flex-1 min-w-[200px] flex flex-col gap-1">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
+            New playlist name
+          </span>
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void createPlaylist();
+            }}
+            placeholder="e.g. Opening Set, Hype, After Hours"
+            className="text-sm p-2 border-2 border-ink bg-cream focus:outline-none focus:ring-2 focus:ring-gold"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => void createPlaylist()}
+          disabled={!newName.trim() || creating}
+          className="bg-gold border-2 border-ink px-4 py-2 font-black uppercase tracking-widest text-xs shadow-[3px_3px_0_var(--color-ink)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0_var(--color-ink)] disabled:opacity-40 disabled:cursor-not-allowed transition-transform"
+        >
+          {creating ? "Creating…" : "+ Create playlist"}
+        </button>
+      </div>
+
+      {playlists.length === 0 ? (
+        <div className="border-2 border-dashed border-muted p-8 text-center text-muted text-sm">
+          No playlists yet. Name one above to start curating an ordered set
+          list. Tracks stay in the library — playlists are just ordered
+          references to them.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {playlists.map((pl) => (
+            <PlaylistEditor
+              key={pl.id}
+              playlist={pl}
+              tracks={tracks}
+              tracksById={tracksById}
+              saving={savingFor === `playlist:${pl.id}`}
+              onSave={onSave}
+              onDelete={() => onDelete(pl.id)}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PlaylistEditor({
+  playlist,
+  tracks,
+  tracksById,
+  saving,
+  onSave,
+  onDelete,
+}: {
+  playlist: PlaylistT;
+  tracks: TrackT[];
+  tracksById: Record<string, TrackT>;
+  saving: boolean;
+  onSave: (pl: PlaylistT) => Promise<void>;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(playlist.name);
+  const [description, setDescription] = useState(playlist.description ?? "");
+  const [addPickerId, setAddPickerId] = useState("");
+
+  // Resync local edit state after the manifest finishes saving. Microtask-
+  // deferred to satisfy react-hooks/set-state-in-effect.
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setName(playlist.name);
+      setDescription(playlist.description ?? "");
+    });
+  }, [playlist.name, playlist.description]);
+
+  const presentIds = playlist.trackIds.filter((id) => tracksById[id]);
+  const missingIds = playlist.trackIds.filter((id) => !tracksById[id]);
+  const inPlaylist = new Set(playlist.trackIds);
+  const candidates = tracks.filter((t) => !inPlaylist.has(t.id));
+
+  function commitMeta() {
+    const nextName = name.trim() || playlist.name;
+    const nextDesc = description.trim();
+    const patch: Partial<PlaylistT> = {};
+    if (nextName !== playlist.name) patch.name = nextName;
+    if ((playlist.description ?? "") !== nextDesc) {
+      patch.description = nextDesc || undefined;
+    }
+    if (Object.keys(patch).length === 0) return;
+    void onSave({ ...playlist, ...patch });
+  }
+
+  function setTrackIds(next: string[]) {
+    void onSave({ ...playlist, trackIds: next });
+  }
+
+  function addTrack() {
+    if (!addPickerId) return;
+    setTrackIds([...playlist.trackIds, addPickerId]);
+    setAddPickerId("");
+  }
+
+  function removeAt(idx: number) {
+    setTrackIds(playlist.trackIds.filter((_, i) => i !== idx));
+  }
+
+  function moveUp(idx: number) {
+    if (idx === 0) return;
+    const next = [...playlist.trackIds];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    setTrackIds(next);
+  }
+
+  function moveDown(idx: number) {
+    if (idx >= playlist.trackIds.length - 1) return;
+    const next = [...playlist.trackIds];
+    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    setTrackIds(next);
+  }
+
+  function pruneMissing() {
+    if (missingIds.length === 0) return;
+    setTrackIds(presentIds);
+  }
+
+  const totalSec = presentIds.reduce(
+    (s, id) => s + (tracksById[id]?.durationSec ?? 0),
+    0,
+  );
+
+  return (
+    <article className="border-[3px] border-ink bg-cream-dark/40 shadow-[3px_3px_0_var(--color-ink)]">
+      <header className="flex items-center gap-3 p-3 border-b-2 border-ink bg-cream">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="text-base font-black uppercase tracking-widest hover:text-coral"
+          title={open ? "Collapse" : "Expand"}
+        >
+          {open ? "▾" : "▸"} {playlist.name}
+        </button>
+        <span className="text-[11px] font-mono text-muted">
+          {presentIds.length} track{presentIds.length === 1 ? "" : "s"}
+          {totalSec > 0 ? ` · ${formatDuration(totalSec)}` : ""}
+          {missingIds.length > 0 ? ` · ${missingIds.length} missing` : ""}
+        </span>
+        <span className="ml-auto text-[10px] font-mono text-muted">
+          id: {playlist.id}
+        </span>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={saving}
+          className="text-[10px] font-bold uppercase tracking-widest text-coral hover:underline disabled:opacity-40"
+        >
+          × delete
+        </button>
+      </header>
+
+      {open && (
+        <div className="p-3 flex flex-col gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                Name
+              </span>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={commitMeta}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
+                disabled={saving}
+                className="text-sm p-2 border-2 border-ink bg-cream focus:outline-none focus:ring-2 focus:ring-gold"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                Description (optional)
+              </span>
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                onBlur={commitMeta}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
+                placeholder="What this set is for"
+                disabled={saving}
+                className="text-sm p-2 border-2 border-ink bg-cream focus:outline-none focus:ring-2 focus:ring-gold"
+              />
+            </label>
+          </div>
+
+          {missingIds.length > 0 && (
+            <div className="flex items-center gap-2 border-2 border-coral text-coral p-2 text-[11px] font-mono">
+              <span className="font-bold">
+                {missingIds.length} track
+                {missingIds.length === 1 ? "" : "s"} missing from library:
+              </span>
+              <span className="truncate">{missingIds.join(", ")}</span>
+              <button
+                type="button"
+                onClick={pruneMissing}
+                disabled={saving}
+                className="ml-auto text-[10px] font-bold uppercase tracking-widest underline hover:no-underline disabled:opacity-40"
+              >
+                remove missing
+              </button>
+            </div>
+          )}
+
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-muted mb-1.5">
+              Tracks in order
+            </div>
+            {playlist.trackIds.length === 0 ? (
+              <div className="border-2 border-dashed border-muted p-4 text-center text-muted text-xs">
+                Empty playlist. Add tracks from the library below.
+              </div>
+            ) : (
+              <ol className="flex flex-col gap-1">
+                {playlist.trackIds.map((id, i) => {
+                  const t = tracksById[id];
+                  return (
+                    <li
+                      key={`${id}-${i}`}
+                      className={`grid grid-cols-[2rem_1fr_auto] items-center gap-2 px-2 py-1.5 border-2 ${
+                        t ? "border-ink bg-cream" : "border-coral bg-cream"
+                      }`}
+                    >
+                      <span className="font-mono text-xs text-muted tabular-nums text-right">
+                        {i + 1}.
+                      </span>
+                      <div className="min-w-0">
+                        {t ? (
+                          <>
+                            <div className="text-sm font-bold truncate">
+                              {t.title}
+                            </div>
+                            <div className="text-[10px] font-mono text-muted truncate">
+                              {t.artist ? `${t.artist} · ` : ""}
+                              {t.durationSec
+                                ? formatDuration(t.durationSec)
+                                : "—"}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-[11px] font-mono text-coral">
+                            missing: {id}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={saving || i === 0}
+                          onClick={() => moveUp(i)}
+                          className="w-6 h-6 leading-none border-2 border-ink bg-cream hover:bg-cream-dark disabled:opacity-30 font-bold"
+                          aria-label="move up"
+                          title="Move up"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          disabled={
+                            saving || i === playlist.trackIds.length - 1
+                          }
+                          onClick={() => moveDown(i)}
+                          className="w-6 h-6 leading-none border-2 border-ink bg-cream hover:bg-cream-dark disabled:opacity-30 font-bold"
+                          aria-label="move down"
+                          title="Move down"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => removeAt(i)}
+                          className="w-6 h-6 leading-none border-2 border-coral text-coral bg-cream hover:bg-coral hover:text-ink disabled:opacity-30 font-bold"
+                          aria-label="remove from playlist"
+                          title="Remove from playlist"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-end gap-2 pt-2 border-t-2 border-cream-dark">
+            <label className="flex-1 min-w-[220px] flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                Add track from library
+              </span>
+              <select
+                value={addPickerId}
+                onChange={(e) => setAddPickerId(e.target.value)}
+                disabled={saving || candidates.length === 0}
+                className="text-sm p-2 border-2 border-ink bg-cream focus:outline-none focus:ring-2 focus:ring-gold disabled:opacity-50"
+              >
+                <option value="">
+                  {candidates.length === 0
+                    ? "— every track already in this playlist —"
+                    : "— pick a track —"}
+                </option>
+                {candidates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                    {t.artist ? ` — ${t.artist}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={addTrack}
+              disabled={!addPickerId || saving}
+              className="bg-cream border-2 border-ink px-4 py-2 font-bold uppercase tracking-widest text-xs shadow-[2px_2px_0_var(--color-ink)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0_var(--color-ink)] disabled:opacity-40 disabled:cursor-not-allowed transition-transform"
+            >
+              + Add to playlist
+            </button>
+          </div>
+        </div>
+      )}
     </article>
   );
 }

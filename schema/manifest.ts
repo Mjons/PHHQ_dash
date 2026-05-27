@@ -161,6 +161,17 @@ export const Track = z.object({
   tags: z.array(z.string()).optional(),
 });
 
+// A named, ordered playlist of track IDs. The scene plays trackIds in array
+// order when `nowPlaying = { kind: "playlist", playlistId: <id> }`. Absence
+// of `playlistId` (legacy manifests) means "all tracks, alphabetical by
+// title" — same behavior the scene shipped with. See MUSIC_SCENE_HANDOFF.md.
+export const Playlist = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  trackIds: z.array(z.string()),
+});
+
 // Discriminated union — exactly one mode at a time. The scene reads
 // `nowPlaying.kind` once and branches; no precedence rules to maintain.
 //
@@ -169,6 +180,10 @@ export const Track = z.object({
 //   - track:    `loop` = repeat this single track forever
 //   - playlist: `loop` = when the last track ends, restart from the first
 //   - stream:   live streams are never looped (they're already continuous)
+//
+// playlist.playlistId — optional foreign key into `Manifest.playlists`. When
+// absent, the scene plays all tracks alphabetically (legacy behavior). When
+// present, the scene plays `playlists[playlistId].trackIds` in order.
 export const NowPlaying = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("off") }),
   z.object({
@@ -179,6 +194,7 @@ export const NowPlaying = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("playlist"),
     loop: z.boolean().default(true),
+    playlistId: z.string().optional(),
   }),
   z.object({ kind: z.literal("stream"), streamUrl: httpUrl }),
 ]);
@@ -226,6 +242,9 @@ export const Manifest = z.object({
   series: z.array(BookSeries).default([]),
   bookAnchors: z.array(BookAnchor).default([]),
   tracks: z.record(z.string(), Track).default({}),
+  // Named, ordered playlists. Keyed by Playlist.id. Empty by default so old
+  // manifests parse unchanged. `nowPlaying.playlistId` references entries here.
+  playlists: z.record(z.string(), Playlist).default({}),
   nowPlaying: NowPlaying.default({ kind: "off" }),
   // Per-VT-floor residency config. Keys SHOULD be VTFloor values; the
   // dashboard form only writes those. Typed as a string-keyed record to match
@@ -266,6 +285,7 @@ export type BookSeriesT = z.infer<typeof BookSeries>;
 export type BookAnchorT = z.infer<typeof BookAnchor>;
 export type TrackMimeT = z.infer<typeof TrackMime>;
 export type TrackT = z.infer<typeof Track>;
+export type PlaylistT = z.infer<typeof Playlist>;
 export type NowPlayingT = z.infer<typeof NowPlaying>;
 export type VTFloorT = z.infer<typeof VTFloor>;
 export type VaultResidencyT = z.infer<typeof VaultResidency>;

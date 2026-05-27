@@ -23,11 +23,12 @@ See sibling doc [`SCENE_INTEGRATION.md`](SCENE_INTEGRATION.md) for the broader s
 2. **`NowPlaying` discriminated union** — exactly one of:
    - `{ kind: "off" }`
    - `{ kind: "track", trackId: string, loop: boolean }`
-   - `{ kind: "playlist", loop: boolean }`
+   - `{ kind: "playlist", loop: boolean, playlistId?: string }`
    - `{ kind: "stream", streamUrl: string }`
 3. **`Manifest.tracks`** — `Record<string, Track>` keyed by id.
-4. **`Manifest.nowPlaying`** — the current mode. Defaults to `{ kind: "off" }`.
-5. **Curator UI** at `/music` in the dashboard — uploads tracks to Vercel Blob, edits the `nowPlaying` field.
+4. **`Manifest.playlists`** — `Record<string, Playlist>` keyed by id. Each playlist has `{ id, name, description?, trackIds: string[] }` — an ordered list of track IDs.
+5. **`Manifest.nowPlaying`** — the current mode. Defaults to `{ kind: "off" }`.
+6. **Curator UI** at `/music` in the dashboard — uploads tracks to Vercel Blob, builds named playlists, edits the `nowPlaying` field.
 
 The dashboard's contract: **whatever the curator picks in the Music tab, the scene plays venue-wide.** No per-area triggers, no positional audio, no in-scene volume falloff. v1 is global.
 
@@ -97,8 +98,25 @@ function gainToVolume(gainDb: number, base = 0.7): number {
   return Math.max(0, Math.min(1, v));
 }
 
-// Title-sorted playlist (matches the dashboard's display order).
-function playlistOrder(m: ManifestT): TrackT[] {
+// Resolve the active playlist's tracks in order.
+//
+// `nowPlaying.playlistId` is the foreign key into `m.playlists`. When absent
+// (legacy clients, default state), fall back to "all tracks alphabetical" —
+// the original v1 behavior. When present, use the named playlist's
+// `trackIds` array in exactly that order; skip any IDs that no longer
+// resolve (dashboard prunes these, but be defensive).
+function playlistOrder(m: ManifestT, playlistId: string | undefined): TrackT[] {
+  if (playlistId) {
+    const pl = m.playlists?.[playlistId];
+    if (pl) {
+      return pl.trackIds
+        .map((id) => m.tracks?.[id])
+        .filter((t): t is TrackT => !!t);
+    }
+    // Unknown playlistId — degrade to silence rather than playing a
+    // different playlist the curator didn't pick.
+    return [];
+  }
   return Object.values(m.tracks ?? {}).sort((a, b) =>
     a.title.localeCompare(b.title),
   );
@@ -135,7 +153,7 @@ export function applyNowPlaying(m: ManifestT) {
   }
 
   if (np.kind === "playlist") {
-    const order = playlistOrder(m);
+    const order = playlistOrder(m, np.playlistId);
     if (order.length === 0) return;
     playlistIndex = playlistIndex % order.length;
     startPlaylistTrack(order, np.loop);
@@ -196,7 +214,15 @@ function onManifestRefresh(m: ManifestT) {
     ":" +
     Object.keys(m.tracks ?? {})
       .sort()
-      .join(",");
+      .join(",") +
+    ":" +
+    // Include the active playlist's track order so reordering or
+    // adding/removing tracks in the currently-playing playlist forces a
+    // recompute. Other playlists are ignored — editing an inactive playlist
+    // shouldn't restart playback.
+    (m.nowPlaying.kind === "playlist" && m.nowPlaying.playlistId
+      ? (m.playlists?.[m.nowPlaying.playlistId]?.trackIds ?? []).join(",")
+      : "");
   if (npHash !== lastNowPlayingHash) {
     applyNowPlaying(m);
     lastNowPlayingHash = npHash;
@@ -204,7 +230,7 @@ function onManifestRefresh(m: ManifestT) {
 }
 ```
 
-The hash includes the track-keys list so adding/removing tracks during playlist mode forces a recompute.
+The hash includes the track-keys list so adding/removing tracks during playlist mode forces a recompute. The active playlist's `trackIds` are also folded in so curator edits to the live playlist (reorder, add, remove) reach the scene; edits to other playlists do not.
 
 ---
 
@@ -226,8 +252,12 @@ Run through these once the implementation is in:
 - [ ] Curator picks **Off** → scene goes silent within one manifest poll cycle (~10s).
 - [ ] Curator picks **Single track** without loop → track plays once and stops.
 - [ ] Curator picks **Single track** with loop → track loops indefinitely.
-- [ ] Curator picks **Playlist** with loop → all tracks play in title-sorted order, restart at track 1 after the last.
-- [ ] Curator picks **Playlist** without loop → all tracks play in order, silence after the last.
+- [ ] Curator picks **Playlist** with no `playlistId` (legacy / "All tracks") and loop → all tracks play in title-sorted order, restart at track 1 after the last.
+- [ ] Curator picks **Playlist** with no `playlistId` and no loop → all tracks play in order, silence after the last.
+- [ ] Curator picks a **named playlist** → tracks play in the curator-defined order (NOT alphabetical).
+- [ ] Curator reorders tracks inside the currently-playing named playlist → scene picks up the new order on the next manifest poll without tearing down mid-track.
+- [ ] Curator switches between two named playlists → playhead resets to track 1 of the new playlist (server-side `playbackStartedAt` bumps when the playlist signature changes).
+- [ ] Curator picks a playlist whose `playlistId` no longer exists (race condition with deletion) → scene goes silent rather than playing the wrong set.
 - [ ] Curator picks **Live stream** + valid URL → scene plays the stream.
 - [ ] Curator changes mode mid-playback → no overlap between old and new audio for more than ~1s.
 - [ ] Curator deletes a track that's currently nowPlaying (dashboard refuses this, but if it somehow lands) → scene handles the dangling FK without crashing.
@@ -275,10 +305,26 @@ If any of these become real asks, they all layer cleanly on top of the current s
       "mime": "audio/mpeg",
       "gainDb": 0,
     },
+    "hype-01": {
+      "id": "hype-01",
+      "src": "https://...blob.vercel-storage.com/tracks/hype-01.mp3",
+      "title": "Hype 01",
+      "durationSec": 200,
+      "mime": "audio/mpeg",
+      "gainDb": 0,
+    },
+  },
+  "playlists": {
+    "opening-set": {
+      "id": "opening-set",
+      "name": "Opening Set",
+      "trackIds": ["ambient-01", "hype-01"],
+    },
   },
   "nowPlaying": {
     "kind": "playlist",
     "loop": true,
+    "playlistId": "opening-set",
   },
 }
 ```

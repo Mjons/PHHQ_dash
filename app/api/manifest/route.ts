@@ -9,6 +9,8 @@ import { SEED_MANIFEST } from "@/lib/seed";
 // part of the signature: the curator should be able to toggle loop on a
 // rolling playlist without restarting it from track 1. Playlist contents
 // changing is implicit in `tracks` — clients re-derive on each manifest poll.
+// Switching between named playlists DOES bump the signature so the new
+// playlist starts from its first track instead of the previous offset.
 function modeSignature(np: NowPlayingT): string {
   switch (np.kind) {
     case "off":
@@ -16,7 +18,7 @@ function modeSignature(np: NowPlayingT): string {
     case "track":
       return `track:${np.trackId}`;
     case "playlist":
-      return "playlist";
+      return `playlist:${np.playlistId ?? "__all__"}`;
     case "stream":
       return `stream:${np.streamUrl}`;
   }
