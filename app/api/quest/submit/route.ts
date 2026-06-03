@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
-import { put } from "@vercel/blob";
-import { isWalletAddress, recordSubmission } from "@/lib/submissions";
+import { put, del } from "@vercel/blob";
+import { auth } from "@/auth";
+import {
+  deleteSubmission,
+  isWalletAddress,
+  recordSubmission,
+} from "@/lib/submissions";
 
 // Creator Quest Q5 "Make Your Mark" — the WRITE. Called by the /submit page
 // when a player uploads their comic. Mirrors app/api/pieces/upload but is
@@ -81,4 +86,36 @@ export async function POST(req: Request) {
   await recordSubmission({ wallet, comicUrl: blob.url, dclName });
 
   return NextResponse.json({ ok: true, url: blob.url });
+}
+
+// CURATOR-ONLY: remove a submission so the scene's poll reads makeYourMark:false
+// again and the player has to redo Q5 (useful for testing). Unlike POST, this is
+// NOT in the proxy.ts public allowlist (only POST /api/quest/submit is), so the
+// edge gate already requires a session; we re-check here as defense in depth.
+export async function DELETE(req: Request) {
+  const session = await auth();
+  if (!session?.user) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
+  const wallet = new URL(req.url).searchParams.get("wallet")?.trim() ?? "";
+  if (!isWalletAddress(wallet)) {
+    return NextResponse.json(
+      { error: "`wallet` query param must be a 0x-prefixed 40-hex address" },
+      { status: 400 },
+    );
+  }
+
+  const comicUrl = await deleteSubmission(wallet);
+  // Best-effort blob cleanup — don't fail the request if the blob is already
+  // gone. The Redis state is what the scene reads, so that's the source of truth.
+  if (comicUrl) {
+    try {
+      await del(comicUrl);
+    } catch {
+      // Orphaned blob will be caught by the /admin/blob-orphans tool.
+    }
+  }
+
+  return NextResponse.json({ ok: true, deleted: wallet });
 }

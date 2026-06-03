@@ -1,7 +1,9 @@
 import type { SubmissionT } from "@/lib/submissions";
+import DeleteSubmissionButton from "./delete-submission-button";
 
-// Presentational, server-rendered. Curator-only (gated by proxy.ts, not in the
-// public allowlist). Lists Creator Quest Q5 comic submissions for review.
+// Presentational, server-rendered. The gallery is PUBLIC (allowlisted in
+// proxy.ts); `canDelete` is true only when a curator is signed in, gating the
+// per-row delete action. Lists Creator Quest Q5 comic submissions.
 
 function shortenAddress(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -14,8 +16,10 @@ function formatWhen(iso: string): string {
 
 export default function SubmissionsView({
   submissions,
+  canDelete,
 }: {
   submissions: SubmissionT[];
+  canDelete: boolean;
 }) {
   return (
     <div className="px-7 py-6">
@@ -39,6 +43,7 @@ export default function SubmissionsView({
               <th className="py-2 pr-4">DCL name</th>
               <th className="py-2 pr-4">Wallet</th>
               <th className="py-2 pr-4">Submitted</th>
+              {canDelete && <th className="py-2 pr-4">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -76,6 +81,14 @@ export default function SubmissionsView({
                   </a>
                 </td>
                 <td className="py-3 pr-4 text-muted">{formatWhen(s.at)}</td>
+                {canDelete && (
+                  <td className="py-3 pr-4">
+                    <DeleteSubmissionButton
+                      wallet={s.wallet}
+                      dclName={s.dclName}
+                    />
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

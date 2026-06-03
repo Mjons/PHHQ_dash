@@ -89,6 +89,16 @@ export async function getSubmission(
   };
 }
 
+// Curator-only: wipe a wallet's submission so the scene's poll reads
+// makeYourMark:false again (the player must redo Q5). Returns the comicUrl that
+// was recorded, if any, so the caller can also delete the orphaned blob.
+export async function deleteSubmission(wallet: string): Promise<string | null> {
+  const w = norm(wallet);
+  const existing = await getSubmission(w);
+  await Promise.all([redis.del(subKey(w)), redis.srem(INDEX_KEY, w)]);
+  return existing?.comicUrl ?? null;
+}
+
 // All submissions, newest first, for the curator review page.
 export async function readAllSubmissions(): Promise<SubmissionT[]> {
   const wallets = await redis.smembers(INDEX_KEY);
