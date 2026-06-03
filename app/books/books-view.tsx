@@ -59,6 +59,74 @@ function effectiveCover(url?: string): string | undefined {
 const ASPECTS: AspectT[] = ["square", "portrait", "landscape", "spread"];
 const FACINGS: FacingT[] = ["N", "E", "S", "W"];
 
+// Measure an image file's width/height ratio (w/h) in the browser. Format-
+// agnostic — the <img> decoder handles png/jpg/webp/gif alike. Rejects on a
+// decode failure or zero height so callers can fall back to leaving the aspect
+// untouched.
+function measureImageRatio(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const { naturalWidth: w, naturalHeight: h } = img;
+      URL.revokeObjectURL(url);
+      if (h > 0 && Number.isFinite(w / h)) resolve(w / h);
+      else reject(new Error("could not read image dimensions"));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("could not decode image"));
+    };
+    img.src = url;
+  });
+}
+
+// Map a measured w/h ratio to the nearest named aspect. Canonical ratios mirror
+// the schema labels: portrait 7:10, square 1:1, landscape 10:8, wide 3:2.
+function nearestByRatio<T extends string>(
+  ratio: number,
+  candidates: ReadonlyArray<readonly [T, number]>,
+): T {
+  let best = candidates[0];
+  for (const c of candidates) {
+    if (Math.abs(ratio - c[1]) < Math.abs(ratio - best[1])) best = c;
+  }
+  return best[0];
+}
+
+const COVER_RATIOS: ReadonlyArray<readonly [CoverAspectT, number]> = [
+  ["portrait", 7 / 10],
+  ["square", 1],
+  ["landscape", 10 / 8],
+  ["wide", 3 / 2],
+];
+const PEDESTAL_RATIOS: ReadonlyArray<readonly [PedestalAspectT, number]> = [
+  // "book" is a deliberate open-book (2× width) display mode that a single
+  // cover image's ratio shouldn't infer — excluded from auto-detection.
+  ["portrait", 7 / 10],
+  ["square", 1],
+  ["landscape", 10 / 8],
+];
+
+// Detect a cover image's aspect for auto-fill on upload. Returns null on any
+// measurement failure so the caller leaves the existing aspect alone.
+async function detectCoverAspect(file: File): Promise<CoverAspectT | null> {
+  try {
+    return nearestByRatio(await measureImageRatio(file), COVER_RATIOS);
+  } catch {
+    return null;
+  }
+}
+async function detectPedestalAspect(
+  file: File,
+): Promise<PedestalAspectT | null> {
+  try {
+    return nearestByRatio(await measureImageRatio(file), PEDESTAL_RATIOS);
+  } catch {
+    return null;
+  }
+}
+
 // Default placement target — F2 footprint roughly spans [16..80] × [16..64].
 const F2_DEFAULT = { area: "f2" as AreaT, x: 48, z: 40 };
 
@@ -465,13 +533,23 @@ function SeriesDetail({
 
   async function uploadCover(file: File) {
     try {
+      // Auto-detect the pedestal shape from the cover image so it doesn't get
+      // stuck on the default. Preserve "book" — that's a deliberate open-book
+      // (2× width) display mode a single image's ratio shouldn't override.
+      const detected =
+        pedestalAspect === "book" ? null : await detectPedestalAspect(file);
       const { url } = await uploadBookAsset(
         file,
         series.id,
         null,
         "series-cover",
       );
-      await onUpdate({ cover: url });
+      const patch: Partial<BookSeriesT> = { cover: url };
+      if (detected && detected !== pedestalAspect) {
+        patch.pedestalAspect = detected;
+        setPedestalAspect(detected);
+      }
+      await onUpdate(patch);
     } catch (e) {
       alert(String(e));
     }
@@ -798,9 +876,18 @@ function EpisodeEditor({
 
   async function uploadCover(file: File, side: "front" | "back") {
     try {
+      // The front cover defines the cover frame's shape — auto-detect its aspect
+      // from the image so it doesn't get stuck on the schema default ("wide").
+      // The selector still lets the curator override afterward. Back covers
+      // share coverAspect, so the front governs and back uploads leave it alone.
+      const detected = side === "front" ? await detectCoverAspect(file) : null;
       const { url } = await uploadBookAsset(file, seriesId, episode.id, side);
       const patch: Partial<BookEpisodeT> =
         side === "front" ? { frontCover: url } : { backCover: url };
+      if (detected && detected !== coverAspect) {
+        patch.coverAspect = detected;
+        setCoverAspect(detected);
+      }
       await onUpdate(patch);
     } catch (e) {
       alert(String(e));
