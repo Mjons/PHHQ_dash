@@ -24,6 +24,8 @@ import type { NextRequest } from "next/server";
 //  - POST /api/quest/submit is the anonymous comic-upload write (trust-on-write
 //    per the Creator Quest contract — the only stake is an unearned wearable).
 //  - /submit is the public Creator Quest submission page (players arrive without auth).
+//  - /admin/submissions is the public Creator Quest gallery — deliberately the
+//    one /admin path that is NOT password-gated.
 //  - /api/auth/* are NextAuth's own handlers.
 //  - /login renders the sign-in form.
 //
@@ -49,6 +51,10 @@ export default function proxy(req: NextRequest) {
   const isQuestSubmit =
     req.method === "POST" && pathname === "/api/quest/submit";
   const isSubmitPage = pathname === "/submit";
+  // The Creator Quest submissions gallery is intentionally PUBLIC (no curator
+  // password), unlike the rest of /admin. It exposes submitter wallets, DCL
+  // names, and comic images by design.
+  const isSubmissionsPage = pathname === "/admin/submissions";
 
   if (
     isAuthRoute ||
@@ -61,7 +67,8 @@ export default function proxy(req: NextRequest) {
     isTipWebhook ||
     isQuestStatusRead ||
     isQuestSubmit ||
-    isSubmitPage
+    isSubmitPage ||
+    isSubmissionsPage
   ) {
     return NextResponse.next();
   }
