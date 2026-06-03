@@ -18,6 +18,12 @@ import type { NextRequest } from "next/server";
 //  - POST /api/tips/webhook is the Alchemy callback (verified by signature,
 //    not by session cookie — see app/api/tips/webhook/route.ts).
 //  - /tip/* is the public mobile tip page (visitors arrive without auth).
+//  - GET /api/quest-status is the Creator Quest read-back the DCL scene polls
+//    via signedFetch (identity from the auth-chain header, not a session); its
+//    OPTIONS preflight must also pass.
+//  - POST /api/quest/submit is the anonymous comic-upload write (trust-on-write
+//    per the Creator Quest contract — the only stake is an unearned wearable).
+//  - /submit is the public Creator Quest submission page (players arrive without auth).
 //  - /api/auth/* are NextAuth's own handlers.
 //  - /login renders the sign-in form.
 //
@@ -37,6 +43,12 @@ export default function proxy(req: NextRequest) {
   const isPublicTipPage = pathname.startsWith("/tip/");
   const isTipWebhook =
     req.method === "POST" && pathname === "/api/tips/webhook";
+  const isQuestStatusRead =
+    (req.method === "GET" || req.method === "OPTIONS") &&
+    pathname === "/api/quest-status";
+  const isQuestSubmit =
+    req.method === "POST" && pathname === "/api/quest/submit";
+  const isSubmitPage = pathname === "/submit";
 
   if (
     isAuthRoute ||
@@ -46,7 +58,10 @@ export default function proxy(req: NextRequest) {
     isPublicTipsRead ||
     isPublicQr ||
     isPublicTipPage ||
-    isTipWebhook
+    isTipWebhook ||
+    isQuestStatusRead ||
+    isQuestSubmit ||
+    isSubmitPage
   ) {
     return NextResponse.next();
   }
