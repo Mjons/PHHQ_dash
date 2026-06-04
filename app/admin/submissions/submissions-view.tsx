@@ -1,6 +1,8 @@
 import { submissionPieceId, type SubmissionT } from "@/lib/submissions";
 import DeleteSubmissionButton from "./delete-submission-button";
 import AddToPiecesButton from "./add-to-pieces-button";
+import PlaceOnWallButton from "./place-on-wall-button";
+import AutoModeToggle from "./automode-toggle";
 
 // Presentational, server-rendered. The gallery is PUBLIC (allowlisted in
 // proxy.ts); `isCurator` is true only when a curator is signed in, gating the
@@ -21,15 +23,20 @@ export default function SubmissionsView({
   submissions,
   isCurator,
   existingPieceIds,
+  placedPieceIds,
+  autoPlace,
 }: {
   submissions: SubmissionT[];
   isCurator: boolean;
   existingPieceIds: string[];
+  placedPieceIds: string[];
+  autoPlace: boolean;
 }) {
   const pieceIdSet = new Set(existingPieceIds);
+  const placedSet = new Set(placedPieceIds);
   return (
     <div className="px-7 py-6">
-      <div className="flex items-baseline gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-black text-2xl uppercase tracking-widest">
           Submissions
         </h1>
@@ -37,6 +44,11 @@ export default function SubmissionsView({
           {submissions.length} comic{submissions.length === 1 ? "" : "s"} ·
           Creator Quest Q5
         </span>
+        {isCurator && (
+          <div className="ml-auto">
+            <AutoModeToggle initial={autoPlace} />
+          </div>
+        )}
       </div>
 
       {submissions.length === 0 ? (
@@ -89,7 +101,13 @@ export default function SubmissionsView({
                 <td className="py-3 pr-4 text-muted">{formatWhen(s.at)}</td>
                 {isCurator && (
                   <td className="py-3 pr-4">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {s.comicUrl && (
+                        <PlaceOnWallButton
+                          wallet={s.wallet}
+                          placed={placedSet.has(submissionPieceId(s.wallet))}
+                        />
+                      )}
                       {s.comicUrl && (
                         <AddToPiecesButton
                           pieceId={submissionPieceId(s.wallet)}

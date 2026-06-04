@@ -1,5 +1,5 @@
 import SubmissionsView from "./submissions-view";
-import { readAllSubmissions } from "@/lib/submissions";
+import { readAllSubmissions, getAutoPlace } from "@/lib/submissions";
 import { redis, MANIFEST_KEY } from "@/lib/redis";
 import { auth } from "@/auth";
 
@@ -10,27 +10,38 @@ export const metadata = { title: "Submissions — Panel Haus" };
 // here. Reads submission state from Redis at request time.
 export const dynamic = "force-dynamic";
 
-// Just the piece ids from the manifest — enough to mark which submissions are
-// already promoted into the pieces collection. Reads the raw manifest object
-// directly (no schema parse needed for a keys lookup).
-async function readPieceIds(): Promise<string[]> {
-  const raw = await redis.get<{ pieces?: Record<string, unknown> }>(
-    MANIFEST_KEY,
-  );
-  return raw?.pieces ? Object.keys(raw.pieces) : [];
+// Piece ids registered in the manifest (marks "already in pieces") plus the
+// piece ids currently assigned to an anchor (marks "on wall"). Reads the raw
+// manifest object directly — no schema parse needed for these lookups.
+async function readManifestPieceState(): Promise<{
+  existing: string[];
+  placed: string[];
+}> {
+  const raw = await redis.get<{
+    pieces?: Record<string, unknown>;
+    anchors?: Array<{ pieceId?: string | null }>;
+  }>(MANIFEST_KEY);
+  const existing = raw?.pieces ? Object.keys(raw.pieces) : [];
+  const placed = (raw?.anchors ?? [])
+    .map((a) => a.pieceId)
+    .filter((id): id is string => typeof id === "string");
+  return { existing, placed };
 }
 
 export default async function SubmissionsPage() {
-  const [submissions, session, existingPieceIds] = await Promise.all([
+  const [submissions, session, pieceState, autoPlace] = await Promise.all([
     readAllSubmissions(),
     auth(),
-    readPieceIds(),
+    readManifestPieceState(),
+    getAutoPlace(),
   ]);
   return (
     <SubmissionsView
       submissions={submissions}
       isCurator={!!session?.user}
-      existingPieceIds={existingPieceIds}
+      existingPieceIds={pieceState.existing}
+      placedPieceIds={pieceState.placed}
+      autoPlace={autoPlace}
     />
   );
 }

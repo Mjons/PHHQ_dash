@@ -26,6 +26,23 @@ const subKey = (wallet: string) => `${KEY_PREFIX}${wallet}`;
 // SCAN over the keyspace.
 const INDEX_KEY = `${KEY_PREFIX}index`;
 
+// Curator toggle: when true, POST /api/quest/submit auto-places the comic on the
+// gallery wall the moment it's uploaded (so a player can refresh the scene and
+// see their work). When false (default), submissions wait in the queue for the
+// curator to "Place on wall" manually. Lives in Redis, not the manifest, for the
+// same no-version-churn reason the rest of this module does.
+const AUTOMODE_KEY = `${KEY_PREFIX}automode`;
+
+// Ordered list (oldest at head) of submission piece ids currently occupying a
+// gallery-wall anchor. Drives FIFO eviction when the wall is full. Maintained by
+// lib/submission-placement.ts.
+const WALLORDER_KEY = `${KEY_PREFIX}wallorder`;
+
+// Tag marking an anchor as part of the auto-placement gallery wall. The curator
+// applies it to the collage anchors (e.g. via the F1 east-wall capture import);
+// placement fills tagged anchors with `pieceId === null` and rotates them FIFO.
+export const SUBMISSION_WALL_TAG = "submission-wall";
+
 const WALLET_RE = /^0x[0-9a-fA-F]{40}$/;
 
 export type SubmissionT = {
@@ -117,4 +134,36 @@ export async function readAllSubmissions(): Promise<SubmissionT[]> {
   return records
     .filter((r): r is SubmissionT => r !== null)
     .sort((a, b) => b.at.localeCompare(a.at));
+}
+
+// --- Auto-place mode ----------------------------------------------------------
+
+// True when new submissions should be auto-placed on the gallery wall on upload.
+// Absent key (never toggled) reads false — manual approval is the safe default.
+export async function getAutoPlace(): Promise<boolean> {
+  return (await redis.get<boolean>(AUTOMODE_KEY)) === true;
+}
+
+export async function setAutoPlace(on: boolean): Promise<void> {
+  await redis.set(AUTOMODE_KEY, on);
+}
+
+// --- Gallery-wall placement order (FIFO) -------------------------------------
+
+// Record that `pieceId` now occupies a wall anchor. De-duped so a re-placed
+// wallet moves to the tail (newest) rather than appearing twice.
+export async function pushWallPlacement(pieceId: string): Promise<void> {
+  await redis.lrem(WALLORDER_KEY, 0, pieceId);
+  await redis.rpush(WALLORDER_KEY, pieceId);
+}
+
+// Remove and return the oldest-placed piece id (head of the list), or null when
+// nothing is tracked.
+export async function popOldestWallPlacement(): Promise<string | null> {
+  return (await redis.lpop<string>(WALLORDER_KEY)) ?? null;
+}
+
+// Drop a piece id from the order list (e.g. when the curator deletes it).
+export async function removeWallPlacement(pieceId: string): Promise<void> {
+  await redis.lrem(WALLORDER_KEY, 0, pieceId);
 }

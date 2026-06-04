@@ -3,9 +3,12 @@ import { put, del } from "@vercel/blob";
 import { auth } from "@/auth";
 import {
   deleteSubmission,
+  getAutoPlace,
   isWalletAddress,
   recordSubmission,
 } from "@/lib/submissions";
+import { placeSubmission } from "@/lib/submission-placement";
+import { aspectFromBytes } from "@/lib/image-size";
 
 // Creator Quest Q5 "Make Your Mark" — the WRITE. Called by the /submit page
 // when a player uploads their comic. Mirrors app/api/pieces/upload but is
@@ -75,8 +78,15 @@ export async function POST(req: Request) {
   // 1-year cache is fine: the curator reviews via a fresh URL each upload only
   // if the slug changed, but here we want overwrite semantics, so the cache
   // window just bounds repeat-view egress on an essentially immutable image.
+  // Read the bytes once: used both for the Blob put and for measuring aspect
+  // server-side (no DOM here) so auto-placement builds a correctly-shaped Piece.
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const aspect = aspectFromBytes(bytes);
+
   const path = `submissions/${wallet.toLowerCase()}.${ext}`;
-  const blob = await put(path, file, {
+  // @vercel/blob's put() takes a Buffer/Blob/File/stream — not a bare
+  // Uint8Array. Buffer.from shares the bytes (no copy) and satisfies the type.
+  const blob = await put(path, Buffer.from(bytes), {
     access: "public",
     contentType: file.type,
     allowOverwrite: true,
@@ -85,7 +95,26 @@ export async function POST(req: Request) {
 
   await recordSubmission({ wallet, comicUrl: blob.url, dclName });
 
-  return NextResponse.json({ ok: true, url: blob.url });
+  // Auto-place on the gallery wall when the curator has enabled auto-mode, so
+  // the player can refresh the scene and see their comic immediately. Never let
+  // a placement failure fail the submission itself — the Resident badge unlocks
+  // off the recorded submission, independent of whether the wall write succeeds.
+  let placed = false;
+  try {
+    if (await getAutoPlace()) {
+      const result = await placeSubmission({
+        wallet,
+        comicUrl: blob.url,
+        dclName,
+        aspect,
+      });
+      placed = result.placed;
+    }
+  } catch (e) {
+    console.error("[quest/submit] auto-place failed", e);
+  }
+
+  return NextResponse.json({ ok: true, url: blob.url, placed });
 }
 
 // CURATOR-ONLY: remove a submission so the scene's poll reads makeYourMark:false

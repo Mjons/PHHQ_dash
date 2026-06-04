@@ -2,7 +2,7 @@
 // V1 scope: only handles floor.parcels. Bridges, pathways, and the atrium void
 // are not modeled; seeds in those zones fall back to a single 16m wall centered
 // on the seed and the curator hand-deletes any spillover.
-// See docs/ROW_FILL_V1.md for the design notes.
+// See docs/archive/ROW_FILL_V1.md for the design notes.
 
 import type { AnchorT } from "@/schema/manifest";
 import type { Floor } from "@/app/map/floor-data";

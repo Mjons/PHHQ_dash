@@ -19,7 +19,7 @@ import TipPageClient from "./tip-page-client";
 // nothing in our infra has to detect the tx for the artist to be paid.
 //
 // Tip detection (gold-floor reward + counters) is deferred to v1.5; see
-// docs/VAULT_TIPPING_PLAN.md.
+// docs/archive/VAULT_TIPPING_PLAN.md.
 
 async function readManifest() {
   const raw = await redis.get<unknown>(MANIFEST_KEY);

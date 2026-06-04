@@ -1,0 +1,399 @@
+{
+  "_meta": {
+    "capturedAt": "2026-05-25T00:00:00.000Z",
+    "purpose": "VT4 residency — Voluptechne — 15-piece curation",
+    "appliesTo": "vt4",
+    "note": "Extends the original 7-anchor triptych layout to 15 anchors (5 W, 5 E, 3 S, 2 N entry plaques). Pieces have `src`/`aspect`/`preferredFrame` as placeholders — replace via the dashboard's batch-upload flow after the artist provides files. The `link` field is populated from her spreadsheet and matches the ANCHOR_LINKS_PLAN.md surface."
+  },
+
+  "vaultResidencies": {
+    "vt4": {
+      "artistWallet": "0x0000000000000000000000000000000000000000",
+      "artistName": "Voluptechne",
+      "artistMessage": "Residency: works across ETH, Base, and Tezos — self-portraits, ritual, the body as a verb. Tip on chain; leave a mark on the floor.",
+      "artistLinks": {
+        "opensea": "https://opensea.io/collection/voluptechne",
+        "site": "https://objkt.com/users/voluptechne"
+      },
+      "pedestalPos": { "x": 88, "z": 16 },
+      "activeUntil": "2026-07-25T00:00:00.000Z"
+    }
+  },
+
+  "pieces": {
+    "vt4-voluptechne-manifesto": {
+      "id": "vt4-voluptechne-manifesto",
+      "src": "__UPLOAD__",
+      "aspect": 0.7,
+      "preferredFrame": "A",
+      "artist": "Voluptechne",
+      "title": "Voluptechne Manifesto",
+      "link": "https://objkt.com/tokens/KT1UXZ3HF2aEHhYrYvAmArD5QGjBq61qCFPc/66",
+      "tags": ["text", "manifesto", "tezos", "voluptechne", "vt4-residency"],
+      "batch": "vt4-residency"
+    },
+    "vt4-voluptechne-definition": {
+      "id": "vt4-voluptechne-definition",
+      "src": "__UPLOAD__",
+      "aspect": 0.7,
+      "preferredFrame": "A",
+      "artist": "Voluptechne",
+      "title": "Voluptechne Definition",
+      "link": "https://uptight-possum-3q15c.lighthouse.storage/",
+      "tags": ["text", "definition", "tezos", "voluptechne", "vt4-residency"],
+      "batch": "vt4-residency"
+    },
+    "vt4-proud-mary": {
+      "id": "vt4-proud-mary",
+      "src": "__UPLOAD__",
+      "aspect": 0.8,
+      "preferredFrame": "B",
+      "artist": "Voluptechne",
+      "title": "Proud Mary",
+      "link": "https://superrare.com/artwork/eth/0x3caabFCad9c7Bb04f62A1D0703FB202CB31D9Dd4/9",
+      "tags": ["1/1", "eth", "superrare", "sold", "vt4-residency"],
+      "batch": "vt4-residency"
+    },
+    "vt4-venus-iridescente": {
+      "id": "vt4-venus-iridescente",
+      "src": "__UPLOAD__",
+      "aspect": 0.8,
+      "preferredFrame": "B",
+      "artist": "Voluptechne",
+      "title": "Vénus Iridescente",
+      "link": "https://superrare.com/artwork/eth/0x3caabFCad9c7Bb04f62A1D0703FB202CB31D9Dd4/11",
+      "tags": ["1/1", "eth", "superrare", "sold", "vt4-residency"],
+      "batch": "vt4-residency"
+    },
+    "vt4-voluptechne-video": {
+      "id": "vt4-voluptechne-video",
+      "src": "__UPLOAD__",
+      "aspect": 1.0,
+      "preferredFrame": "B",
+      "artist": "Voluptechne",
+      "title": "Voluptechne",
+      "link": "https://superrare.com/artwork/eth/0x3caabFCad9c7Bb04f62A1D0703FB202CB31D9Dd4/15",
+      "tags": [
+        "1/1",
+        "eth",
+        "superrare",
+        "video",
+        "centerpiece",
+        "vt4-residency"
+      ],
+      "batch": "vt4-residency"
+    },
+    "vt4-flesh-and-metal": {
+      "id": "vt4-flesh-and-metal",
+      "src": "__UPLOAD__",
+      "aspect": 0.8,
+      "preferredFrame": "B",
+      "artist": "Voluptechne",
+      "title": "Flesh + Metal",
+      "link": "https://superrare.com/artwork/eth/0x3caabFCad9c7Bb04f62A1D0703FB202CB31D9Dd4/10",
+      "tags": ["1/1", "eth", "superrare", "sold", "vt4-residency"],
+      "batch": "vt4-residency"
+    },
+    "vt4-body-mapping": {
+      "id": "vt4-body-mapping",
+      "src": "__UPLOAD__",
+      "aspect": 1.0,
+      "preferredFrame": "B",
+      "artist": "Voluptechne",
+      "title": "Body Mapping",
+      "link": "https://superrare.com/artwork/eth/0x1259BA696527156C3B1cbdFC74243edBD57F1a82/35",
+      "tags": ["1/1", "eth", "superrare", "sold", "animated", "vt4-residency"],
+      "batch": "vt4-residency"
+    },
+    "vt4-pour-one-out": {
+      "id": "vt4-pour-one-out",
+      "src": "__UPLOAD__",
+      "aspect": 0.8,
+      "preferredFrame": "B",
+      "artist": "Voluptechne",
+      "title": "Pour One Out for the Art Hoes",
+      "link": "https://superrare.com/artwork/eth/0x3caabFCad9c7Bb04f62A1D0703FB202CB31D9Dd4/12",
+      "tags": ["1/1", "eth", "superrare", "available", "vt4-residency"],
+      "batch": "vt4-residency"
+    },
+    "vt4-ritual-union": {
+      "id": "vt4-ritual-union",
+      "src": "__UPLOAD__",
+      "aspect": 0.8,
+      "preferredFrame": "B",
+      "artist": "Voluptechne",
+      "title": "Ritual Union",
+      "link": "https://superrare.com/artwork/eth/0x3caabFCad9c7Bb04f62A1D0703FB202CB31D9Dd4/14",
+      "tags": ["1/1", "eth", "superrare", "available", "vt4-residency"],
+      "batch": "vt4-residency"
+    },
+    "vt4-royal-self-portrait-22": {
+      "id": "vt4-royal-self-portrait-22",
+      "src": "__UPLOAD__",
+      "aspect": 0.8,
+      "preferredFrame": "A",
+      "artist": "Voluptechne",
+      "title": "Royal Self Portrait #22",
+      "link": "https://objkt.com/tokens/KT1QK69Z94UxoxCSux36aEKjD6fWHKg7CsQG/22",
+      "tags": [
+        "series",
+        "tezos",
+        "objkt",
+        "open-edition",
+        "centerpiece",
+        "vt4-residency"
+      ],
+      "batch": "vt4-residency"
+    },
+    "vt4-proof-of-palm": {
+      "id": "vt4-proof-of-palm",
+      "src": "__UPLOAD__",
+      "aspect": 1.0,
+      "preferredFrame": "A",
+      "artist": "Voluptechne",
+      "title": "Proof of Palm: Voluptechne",
+      "link": "https://objkt.com/tokens/KT1UXZ3HF2aEHhYrYvAmArD5QGjBq61qCFPc/68",
+      "tags": ["tezos", "objkt", "animated", "open-edition", "vt4-residency"],
+      "batch": "vt4-residency"
+    },
+    "vt4-body-mapping-ii": {
+      "id": "vt4-body-mapping-ii",
+      "src": "__UPLOAD__",
+      "aspect": 1.0,
+      "preferredFrame": "B",
+      "artist": "Voluptechne",
+      "title": "Body Mapping II",
+      "link": "https://objkt.com/tokens/KT1UXZ3HF2aEHhYrYvAmArD5QGjBq61qCFPc/67",
+      "tags": [
+        "tezos",
+        "objkt",
+        "animated",
+        "full-moon-airdrop",
+        "vt4-residency"
+      ],
+      "batch": "vt4-residency"
+    },
+    "vt4-lotus-blooms": {
+      "id": "vt4-lotus-blooms",
+      "src": "__UPLOAD__",
+      "aspect": 0.8,
+      "preferredFrame": "B",
+      "artist": "Voluptechne",
+      "title": "Lotus Blooms (Empress Trash)",
+      "link": "https://lunalauncher.io/mint/empress-trash-lotus-blooms",
+      "tags": [
+        "ordinal",
+        "base",
+        "physical-print",
+        "available",
+        "vt4-residency"
+      ],
+      "batch": "vt4-residency"
+    },
+    "vt4-seventh-gate": {
+      "id": "vt4-seventh-gate",
+      "src": "__UPLOAD__",
+      "aspect": 1.6,
+      "preferredFrame": "B",
+      "artist": "Voluptechne",
+      "title": "The Seventh Gate",
+      "link": "https://objkt.com/tokens/KT1ZzrvJo2HmRPMkBvwhYdvbEvyujTbF6tbK/12",
+      "tags": ["tezos", "objkt", "open-edition", "capstone", "vt4-residency"],
+      "batch": "vt4-residency"
+    },
+    "vt4-blood-moon-eclipse": {
+      "id": "vt4-blood-moon-eclipse",
+      "src": "__UPLOAD__",
+      "aspect": 1.0,
+      "preferredFrame": "B",
+      "artist": "Voluptechne",
+      "title": "Blood Moon Lunar Eclipse",
+      "link": "https://opensea.io/item/base/0x28aa49080b332805e5c1fecec92019fd5b3ff151/6",
+      "tags": ["base", "opensea", "airdrop", "fan-favorite", "vt4-residency"],
+      "batch": "vt4-residency"
+    }
+  },
+
+  "anchors": [
+    {
+      "id": "vt4-n-1",
+      "area": "vt4",
+      "x": 85,
+      "z": 0.25,
+      "facing": "S",
+      "maxWidth": 3,
+      "maxHeight": 5,
+      "allowedFrames": ["A"],
+      "pieceId": "vt4-voluptechne-manifesto",
+      "note": "N entry plaque (1/2) — Manifesto sets tone on arrival"
+    },
+    {
+      "id": "vt4-n-2",
+      "area": "vt4",
+      "x": 91,
+      "z": 0.25,
+      "facing": "S",
+      "maxWidth": 3,
+      "maxHeight": 5,
+      "allowedFrames": ["A"],
+      "pieceId": "vt4-voluptechne-definition",
+      "note": "N entry plaque (2/2) — Definition pairs with Manifesto"
+    },
+    {
+      "id": "vt4-w-1",
+      "area": "vt4",
+      "x": 80.25,
+      "z": 4,
+      "facing": "E",
+      "maxWidth": 4,
+      "maxHeight": 6,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-proud-mary",
+      "note": "W wall (1/5) — sold ETH 1/1, opens the career arc"
+    },
+    {
+      "id": "vt4-w-2",
+      "area": "vt4",
+      "x": 80.25,
+      "z": 8,
+      "facing": "E",
+      "maxWidth": 4,
+      "maxHeight": 6,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-venus-iridescente",
+      "note": "W wall (2/5) — sold ETH 1/1"
+    },
+    {
+      "id": "vt4-w-3",
+      "area": "vt4",
+      "x": 80.25,
+      "z": 16,
+      "facing": "E",
+      "maxWidth": 4,
+      "maxHeight": 6,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-voluptechne-video",
+      "note": "W wall (3/5 — CENTER) — Voluptechne video; her only video piece, must-include"
+    },
+    {
+      "id": "vt4-w-4",
+      "area": "vt4",
+      "x": 80.25,
+      "z": 24,
+      "facing": "E",
+      "maxWidth": 4,
+      "maxHeight": 6,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-flesh-and-metal",
+      "note": "W wall (4/5) — sold ETH 1/1"
+    },
+    {
+      "id": "vt4-w-5",
+      "area": "vt4",
+      "x": 80.25,
+      "z": 32,
+      "facing": "E",
+      "maxWidth": 4,
+      "maxHeight": 6,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-body-mapping",
+      "note": "W wall (5/5) — Body Mapping (original, sold ETH animated)"
+    },
+    {
+      "id": "vt4-e-1",
+      "area": "vt4",
+      "x": 95.75,
+      "z": 4,
+      "facing": "W",
+      "maxWidth": 4,
+      "maxHeight": 6,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-pour-one-out",
+      "note": "E wall (1/5) — available ETH 1/1, opposite Proud Mary"
+    },
+    {
+      "id": "vt4-e-2",
+      "area": "vt4",
+      "x": 95.75,
+      "z": 8,
+      "facing": "W",
+      "maxWidth": 4,
+      "maxHeight": 6,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-ritual-union",
+      "note": "E wall (2/5) — available ETH 1/1"
+    },
+    {
+      "id": "vt4-e-3",
+      "area": "vt4",
+      "x": 95.75,
+      "z": 16,
+      "facing": "W",
+      "maxWidth": 4,
+      "maxHeight": 6,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-royal-self-portrait-22",
+      "note": "E wall (3/5 — CENTER) — Royal Self Portrait #22, must-include"
+    },
+    {
+      "id": "vt4-e-4",
+      "area": "vt4",
+      "x": 95.75,
+      "z": 24,
+      "facing": "W",
+      "maxWidth": 4,
+      "maxHeight": 6,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-proof-of-palm",
+      "note": "E wall (4/5) — Proof of Palm (animated, 39 ed)"
+    },
+    {
+      "id": "vt4-e-5",
+      "area": "vt4",
+      "x": 95.75,
+      "z": 32,
+      "facing": "W",
+      "maxWidth": 4,
+      "maxHeight": 6,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-body-mapping-ii",
+      "note": "E wall (5/5) — Body Mapping II (Tezos airdrop) — mirrors W5 across the room"
+    },
+    {
+      "id": "vt4-s-1",
+      "area": "vt4",
+      "x": 82,
+      "z": 31.75,
+      "facing": "N",
+      "maxWidth": 4,
+      "maxHeight": 5,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-lotus-blooms",
+      "note": "S flanker (W) — Lotus Blooms (Base ordinal, must-include)"
+    },
+    {
+      "id": "vt4-s-2",
+      "area": "vt4",
+      "x": 88,
+      "z": 31.75,
+      "facing": "N",
+      "maxWidth": 10,
+      "maxHeight": 6,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-seventh-gate",
+      "note": "S capstone — The Seventh Gate (must-include); widest slot on the floor"
+    },
+    {
+      "id": "vt4-s-3",
+      "area": "vt4",
+      "x": 94,
+      "z": 31.75,
+      "facing": "N",
+      "maxWidth": 4,
+      "maxHeight": 5,
+      "allowedFrames": ["A", "B"],
+      "pieceId": "vt4-blood-moon-eclipse",
+      "note": "S flanker (E) — Blood Moon Lunar Eclipse (Base, ~3.6k owners — high tip-conversion bet)"
+    }
+  ]
+}

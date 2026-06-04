@@ -116,8 +116,20 @@ export const FLOORS: Record<AreaT, Floor> = {
       [64, 48],
       [48, 64],
     ],
+    // Fills the entire empty [64,64] quadrant with two 8m-deep strips,
+    // splitting it into dance floor (south half, against [64,48]) and stage
+    // (north half, against the venue's north boundary).
+    bridges: [
+      // Dance floor extension — flush against [64,48]'s north (bottom-of-
+      // screen) edge along the full 16m width.
+      { x: 64, z: 64, width: 16, height: 8, label: "DANCE EXT" },
+      // Stage extension — flush against the dance floor's north edge (z=72).
+      // Adds a 16m north wall (z=80) and an 8m east wall (x=80) for hero
+      // pieces; west edge butts up against [48,64] so no new west wall.
+      { x: 64, z: 72, width: 16, height: 8, label: "STAGE EXT" },
+    ],
     description:
-      "L-shaped floor (31m up) housing the <strong>DJ booth, dance floor, and stage</strong>. The tall 16m ceiling fits banners and lightbox pieces that flank the booth and read with the show lighting. Sits on top of F3, so the atrium ends just below.",
+      "L-shaped floor (31m up) housing the <strong>DJ booth, dance floor, and stage</strong>. The tall 16m ceiling fits banners and lightbox pieces that flank the booth and read with the show lighting. Sits on top of F3, so the atrium ends just below. An <strong>8m-deep dance-floor extension</strong> plus an <strong>8m-deep stage extension</strong> fill the NE corner: dance floor abuts the main stage; the stage extension sits at the venue's north edge with a 16m back wall.",
   },
   f5: {
     label: "F5 — Pavilion",
@@ -181,15 +193,27 @@ export const FLOORS: Record<AreaT, Floor> = {
   },
   skywalk: {
     label: "Skywalk",
-    sub: "two-arm overhead bridge",
+    sub: "U-shaped overhead bridge from spawn",
     heightM: 4,
     parcels: [],
     pathways: [
-      { x: 0, z: 6, width: 80, height: 5, label: "WEST ARM" },
-      { x: 83, z: 32, width: 5, height: 48, label: "SOUTH ARM" },
+      // South path — sits at the bottom edge of the z=0 parcel row
+      // (z=11..16), west end aligned with the west leg (x=3), running east
+      // to x=48. 45m long. (Right-of-screen = WEST in world.)
+      { x: 3, z: 11, width: 45, height: 5, label: "SOUTH PATH" },
+      // West leg — inset 3m from the west edge of the venue (x=3..8). Top
+      // aligned with the south path (z=11), runs down to the north span
+      // (z=53). 42m tall. Visitor enters here from spawn.
+      { x: 3, z: 11, width: 5, height: 42, label: "WEST LEG" },
+      // East leg — short stub on the NE corner, attached to the north span
+      // and rising about halfway up. Doesn't reach the south path.
+      { x: 75, z: 26, width: 5, height: 27, label: "EAST LEG" },
+      // North span across the lower-middle row at z=48–53. West end aligned
+      // with the west leg (x=3), running east to x=80. 77m long.
+      { x: 3, z: 48, width: 77, height: 5, label: "NORTH SPAN" },
     ],
     description:
-      "A <strong>two-arm overhead skybridge</strong> emerging from the Vault Tower. The <strong>west arm</strong> crosses ~48m back toward the main building; the <strong>south arm</strong> extends ~24m south of VT. The pathway is ~5m wide. Banners hung along the arms read while visitors traverse.",
+      "An overhead <strong>skybridge</strong> with four segments. Enter from the <strong>spawn corner</strong> in the SW; the <strong>south path</strong> (~45m) hugs the south edge running east to x=48. The <strong>west leg</strong> drops the full height from spawn down to the north span. The <strong>north span</strong> (~77m) runs west-to-east across the lower-middle row. The <strong>east leg</strong> is a short stub climbing about halfway up from the NE corner. Pathways are 5m wide.",
   },
 };
 

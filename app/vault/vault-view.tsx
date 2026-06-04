@@ -192,7 +192,7 @@ export default function VaultView() {
           One artist per VT floor. Tips are USDC on Polygon, wallet-to-wallet —
           we never custody. See{" "}
           <a
-            href="/docs/VAULT_TIPPING_PLAN.md"
+            href="/docs/archive/VAULT_TIPPING_PLAN.md"
             className="underline hover:text-ink"
           >
             VAULT_TIPPING_PLAN.md

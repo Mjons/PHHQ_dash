@@ -51,6 +51,14 @@ const FACING_CYCLE: FacingT[] = ["N", "E", "S", "W"];
 const nextFacing = (f: FacingT): FacingT =>
   FACING_CYCLE[(FACING_CYCLE.indexOf(f) + 1) % FACING_CYCLE.length];
 
+// Rotation ring sits at a fixed SVG radius regardless of piece size — same
+// hit-target across a wall of mixed-size anchors. Matches the facing-arrow
+// scale (~2.2 SVG units) so the affordances visually live in the same family.
+const ROTATION_RING_R = 4;
+const ROTATION_SNAP_DEG = 15;
+const ROTATION_SNAP_FINE_DEG = 5;
+const ROTATION_KEY_STEP = 15;
+
 const flipX = (x: number) => SCENE_W - x;
 const flipZ = (z: number) => z;
 const parcelX = (x: number) => SCENE_W - x - 16;
@@ -60,12 +68,25 @@ const snap = (v: number, step = 0.5) => Math.round(v / step) * step;
 const clampSize = (v: number) =>
   Math.max(0.5, Math.min(20, Math.round(v * 4) / 4));
 
+// Wrap to schema range [-180, 180] and round to 2dp so saves are stable.
+function normalizeRot(deg: number): number {
+  let d = deg % 360;
+  if (d > 180) d -= 360;
+  if (d <= -180) d += 360;
+  return Math.round(d * 100) / 100;
+}
+function snapRot(deg: number, snapDeg: number): number {
+  if (snapDeg <= 0) return normalizeRot(deg);
+  return normalizeRot(Math.round(deg / snapDeg) * snapDeg);
+}
+
 function facingArrow(facing: FacingT, cx: number, cy: number) {
   const len = 2.2;
   let dx = 0;
   let dy = 0;
   if (facing === "N") dy = len;
   if (facing === "S") dy = -len;
+  // East = left-of-screen, west = right-of-screen (scene's flipX convention).
   if (facing === "E") dx = -len;
   if (facing === "W") dx = len;
   return { x1: cx, y1: cy, x2: cx + dx, y2: cy + dy };
@@ -94,6 +115,7 @@ export default function MapView() {
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<TagFilterState>({});
+  const [showParcelCoords, setShowParcelCoords] = useState(false);
   const [fillPreview, setFillPreview] = useState<{
     seedId: string;
     positions: RowPosition[];
@@ -105,6 +127,12 @@ export default function MapView() {
   const [uploadingForAnchorId, setUploadingForAnchorId] = useState<
     string | null
   >(null);
+  // Local in-flight rotation while the user drags the rotation ring. Avoids
+  // saving the manifest on every pointermove — we only commit on pointerup.
+  const [rotationDrag, setRotationDrag] = useState<{
+    id: string;
+    angle: number;
+  } | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const ghostRef = useRef<SVGCircleElement>(null);
@@ -129,8 +157,19 @@ export default function MapView() {
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (target?.isContentEditable) return;
       // Screen-relative mapping. The map renders with X flipped (parcelX in
-      // this file), so visual-left = scene +X. Z is not flipped.
-      let axis: "x" | "z" | null = null;
+      // this file), so visual-left = scene +X. Z is not flipped. Y has no
+      // screen analog so PageUp/PageDown stand in for "raise / lower on
+      // the wall" — matches the single-anchor Y nudge buttons.
+      // [ / ] rotate the current selection. Same modifier convention as
+      // position nudge: Shift = 4× (60°), Alt = 0.2× (3°), default 15°.
+      if (e.key === "[" || e.key === "]") {
+        const dirRot = e.key === "]" ? 1 : -1;
+        const multRot = e.shiftKey ? 4 : e.altKey ? 0.2 : 1;
+        e.preventDefault();
+        void bulkRotate(dirRot * ROTATION_KEY_STEP * multRot);
+        return;
+      }
+      let axis: "x" | "z" | "y" | null = null;
       let dir = 0;
       if (e.key === "ArrowLeft") {
         axis = "x";
@@ -144,6 +183,12 @@ export default function MapView() {
       } else if (e.key === "ArrowDown") {
         axis = "z";
         dir = 1;
+      } else if (e.key === "PageUp") {
+        axis = "y";
+        dir = 1;
+      } else if (e.key === "PageDown") {
+        axis = "y";
+        dir = -1;
       } else {
         return;
       }
@@ -413,13 +458,28 @@ export default function MapView() {
     }
   }
 
-  // Slide every selected anchor by the same (axis, delta). Refuses cross-area
-  // selections (coordinate frames aren't comparable) and refuses if any
-  // anchor would land outside its floor's parcels.
-  async function bulkNudge(axis: "x" | "z", delta: number) {
+  // Slide every selected anchor by the same (axis, delta). X/Z refuse
+  // cross-area selections (floor coordinate frames aren't comparable) and
+  // refuse if any anchor would land outside its floor's parcels. Y is allowed
+  // across floors — "raise everything by 25cm" means the same visual delta
+  // regardless of which floor's baseline the anchor sits above. Undefined Y
+  // starts from 2.5m (mirrors the single-anchor nudge convention).
+  async function bulkNudge(axis: "x" | "z" | "y", delta: number) {
     if (!manifest) return;
     const subset = manifest.anchors.filter((a) => selectedIds.has(a.id));
     if (subset.length === 0) return;
+    const round2 = (v: number) => Math.round(v * 100) / 100;
+
+    if (axis === "y") {
+      // No bounds check beyond clamp-at-zero — Y has no floor-plan extent.
+      await patchAnchorsFn(
+        subset.map((a) => a.id),
+        (a) => ({ y: Math.max(0, round2((a.y ?? 2.5) + delta)) }),
+        `Nudged Y ${delta > 0 ? "+" : ""}${delta}m`,
+      );
+      return;
+    }
+
     const areas = new Set(subset.map((a) => a.area));
     if (areas.size > 1) {
       showToast("Can't nudge across floors — selection spans multiple areas");
@@ -433,11 +493,23 @@ export default function MapView() {
         return;
       }
     }
-    const round2 = (v: number) => Math.round(v * 100) / 100;
     await patchAnchorsFn(
       subset.map((a) => a.id),
       (a) => ({ [axis]: round2(a[axis] + delta) }),
       `Nudged ${axis.toUpperCase()} ${delta > 0 ? "+" : ""}${delta}m`,
+    );
+  }
+
+  // Bulk add `deltaDeg` to every selected anchor's rotation. Unlike position
+  // nudge there are no floor-bounds to check — rotation is just a scalar.
+  async function bulkRotate(deltaDeg: number) {
+    if (!manifest) return;
+    const subset = manifest.anchors.filter((a) => selectedIds.has(a.id));
+    if (subset.length === 0) return;
+    await patchAnchorsFn(
+      subset.map((a) => a.id),
+      (a) => ({ rotation: normalizeRot((a.rotation ?? 0) + deltaDeg) }),
+      `Rotated ${deltaDeg > 0 ? "+" : ""}${deltaDeg}°`,
     );
   }
 
@@ -467,6 +539,45 @@ export default function MapView() {
         `Distributed ${subset.length} anchors along ${axis} · v${saved.version}`,
         4000,
       );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Swap the full physical placement of exactly two selected anchors: each
+  // takes the other's floor, position, height, and wall (area/x/z/y/facing).
+  // Everything else — id, pieceId, size, frames, note, tags — stays put, so
+  // the two pieces trade spots. Works across floors and walls; A lands exactly
+  // where B was and vice versa.
+  async function swapAnchors() {
+    if (!manifest) return;
+    const subset = manifest.anchors.filter((a) => selectedIds.has(a.id));
+    if (subset.length !== 2) return;
+    const [a, b] = subset;
+    const placeOf = (s: AnchorT): Partial<AnchorT> => ({
+      area: s.area,
+      x: s.x,
+      z: s.z,
+      y: s.y,
+      facing: s.facing,
+    });
+    const aPlace = placeOf(a);
+    const bPlace = placeOf(b);
+    const next: ManifestT = {
+      ...manifest,
+      anchors: manifest.anchors.map((anchor) => {
+        if (anchor.id === a.id) return { ...anchor, ...bPlace };
+        if (anchor.id === b.id) return { ...anchor, ...aPlace };
+        return anchor;
+      }),
+    };
+    setSaving(true);
+    try {
+      const saved = await saveManifest(next);
+      setManifest(saved);
+      showToast(`Swapped "${a.id}" ⇄ "${b.id}" · v${saved.version}`, 4000);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -567,6 +678,54 @@ export default function MapView() {
       setManifest(saved);
       setSelectedIds(new Set([dup.id]));
       showToast(`Duplicated → "${dup.id}" · v${saved.version}`);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Clone every selected anchor in one save. Each duplicate is offset 1m from
+  // its source along its own facing axis (same rule as single-anchor
+  // duplicate, so a mixed-facing selection still does the sensible thing per
+  // anchor). New IDs are derived from the source ID with -2/-3/... suffixes,
+  // checking against both the manifest AND ids minted earlier in this batch
+  // so a same-source duplicate doesn't collide with itself.
+  async function bulkDuplicate(seeds: AnchorT[]) {
+    if (!manifest || seeds.length === 0) return;
+    const taken = new Set(manifest.anchors.map((a) => a.id));
+    const dups: AnchorT[] = [];
+    for (const seed of seeds) {
+      let n = 2;
+      let id = `${seed.id}-${n}`;
+      while (taken.has(id)) {
+        n++;
+        id = `${seed.id}-${n}`;
+      }
+      taken.add(id);
+      const horizontal = seed.facing === "N" || seed.facing === "S";
+      dups.push({
+        ...seed,
+        id,
+        x: horizontal ? seed.x + 1 : seed.x,
+        z: horizontal ? seed.z : seed.z + 1,
+      });
+    }
+    const next: ManifestT = {
+      ...manifest,
+      anchors: [...manifest.anchors, ...dups],
+    };
+    setSaving(true);
+    try {
+      const saved = await saveManifest(next);
+      setManifest(saved);
+      // Select the new duplicates so the curator can immediately bulk-nudge
+      // them into place — that's the whole point of duplicating a group.
+      setSelectedIds(new Set(dups.map((d) => d.id)));
+      showToast(
+        `Duplicated · ${dups.length} anchor${dups.length === 1 ? "" : "s"} · v${saved.version}`,
+        3000,
+      );
     } catch (e) {
       setError(String(e));
     } finally {
@@ -835,6 +994,46 @@ export default function MapView() {
               />
             ))}
 
+            {showParcelCoords &&
+              ALL_PARCELS.map(([x, z]) => {
+                const onFloor = activeSet.has(`${x},${z}`);
+                return (
+                  <g key={`coord-${x}-${z}`} style={{ pointerEvents: "none" }}>
+                    <text
+                      x={parcelX(x) + 1}
+                      y={parcelY(z) + 2.2}
+                      fontSize={1.8}
+                      fontWeight={700}
+                      fill={onFloor ? "#1a1a1a" : "#8a857a"}
+                      opacity={onFloor ? 0.95 : 0.55}
+                    >
+                      x={x}
+                    </text>
+                    <text
+                      x={parcelX(x) + 1}
+                      y={parcelY(z) + 4.4}
+                      fontSize={1.8}
+                      fontWeight={700}
+                      fill={onFloor ? "#1a1a1a" : "#8a857a"}
+                      opacity={onFloor ? 0.95 : 0.55}
+                    >
+                      z={z}
+                    </text>
+                    <text
+                      x={parcelX(x) + 15}
+                      y={parcelY(z) + 15}
+                      fontSize={1.6}
+                      fontWeight={700}
+                      textAnchor="end"
+                      fill={onFloor ? "#8a857a" : "#8a857a"}
+                      opacity={0.7}
+                    >
+                      {x + 16},{z + 16}
+                    </text>
+                  </g>
+                );
+              })}
+
             {floor.atriumHole && (
               <>
                 <rect
@@ -885,7 +1084,7 @@ export default function MapView() {
                     fontWeight={700}
                     letterSpacing="0.14em"
                   >
-                    BRIDGE
+                    {b.label ?? "BRIDGE"}
                   </text>
                 </g>
               );
@@ -995,22 +1194,55 @@ export default function MapView() {
             </g>
 
             <g transform="translate(-2, -4)" style={{ pointerEvents: "none" }}>
-              <circle r={4} fill="#1a1a1a" />
+              <circle r={5.5} fill="#1a1a1a" />
+              {/* Compass rose. Top of screen = south, bottom = north, right =
+                  east, left = west. Gold arrow points toward north (down on
+                  screen). */}
               <polygon
-                points="0,-3 1,0 0,3 -1,0"
+                points="0,-3.5 0.8,0 0,3.5 -0.8,0"
                 fill="#f5b119"
                 stroke="#f5b119"
-                strokeWidth={0.4}
+                strokeWidth={0.3}
               />
               <text
                 x={0}
-                y={-5.5}
+                y={-3.3}
                 textAnchor="middle"
-                fontSize={3.6}
+                fontSize={2}
                 fill="#f5f0e1"
                 fontWeight={900}
               >
+                S
+              </text>
+              <text
+                x={0}
+                y={5}
+                textAnchor="middle"
+                fontSize={2}
+                fill="#f5b119"
+                fontWeight={900}
+              >
                 N
+              </text>
+              <text
+                x={-4}
+                y={0.8}
+                textAnchor="middle"
+                fontSize={2}
+                fill="#f5f0e1"
+                fontWeight={900}
+              >
+                E
+              </text>
+              <text
+                x={4}
+                y={0.8}
+                textAnchor="middle"
+                fontSize={2}
+                fill="#f5f0e1"
+                fontWeight={900}
+              >
+                W
               </text>
             </g>
 
@@ -1131,6 +1363,25 @@ export default function MapView() {
                       deleteAnchor(a.id, { skipConfirm: true });
                     }}
                   />
+                  {!isSel &&
+                    a.rotation != null &&
+                    a.rotation !== 0 &&
+                    (() => {
+                      const rad = (a.rotation * Math.PI) / 180;
+                      const tx = cx + 2.4 * Math.sin(rad);
+                      const ty = cy - 2.4 * Math.cos(rad);
+                      return (
+                        <circle
+                          cx={tx}
+                          cy={ty}
+                          r={0.42}
+                          fill="#ff8c42"
+                          stroke="#1a1a1a"
+                          strokeWidth={0.18}
+                          style={{ pointerEvents: "none" }}
+                        />
+                      );
+                    })()}
                   <text
                     x={cx + 2.6}
                     y={cy + 0.8}
@@ -1144,6 +1395,155 @@ export default function MapView() {
                 </g>
               );
             })}
+
+            {selectedAnchor &&
+              selectedAnchor.area === activeArea &&
+              !draft &&
+              (() => {
+                const liveRot =
+                  rotationDrag?.id === selectedAnchor.id
+                    ? rotationDrag.angle
+                    : (selectedAnchor.rotation ?? 0);
+                const cx = flipX(selectedAnchor.x);
+                const cy = flipZ(selectedAnchor.z);
+                const rad = (liveRot * Math.PI) / 180;
+                const tickX = cx + ROTATION_RING_R * Math.sin(rad);
+                const tickY = cy - ROTATION_RING_R * Math.cos(rad);
+                function angleFromPointer(
+                  e: React.PointerEvent,
+                ): number | null {
+                  const svg = svgRef.current;
+                  if (!svg) return null;
+                  const ctm = svg.getScreenCTM();
+                  if (!ctm) return null;
+                  const pt = svg.createSVGPoint();
+                  pt.x = e.clientX;
+                  pt.y = e.clientY;
+                  const p = pt.matrixTransform(ctm.inverse());
+                  const dx = p.x - cx;
+                  const dy = p.y - cy;
+                  if (dx === 0 && dy === 0) return null;
+                  const r = Math.atan2(dx, -dy);
+                  let deg = (r * 180) / Math.PI;
+                  const snapDeg = e.altKey
+                    ? 0
+                    : e.shiftKey
+                      ? ROTATION_SNAP_FINE_DEG
+                      : ROTATION_SNAP_DEG;
+                  deg = snapRot(deg, snapDeg);
+                  return deg;
+                }
+                return (
+                  <g style={{ pointerEvents: "none" }}>
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={ROTATION_RING_R}
+                      fill="none"
+                      stroke="#1a1a1a"
+                      strokeWidth={0.18}
+                      strokeDasharray="0.5 0.4"
+                      opacity={0.5}
+                    />
+                    {[0, 45, 90, 135, 180, -45, -90, -135].map((tickDeg) => {
+                      const r = (tickDeg * Math.PI) / 180;
+                      const x1 = cx + (ROTATION_RING_R - 0.35) * Math.sin(r);
+                      const y1 = cy - (ROTATION_RING_R - 0.35) * Math.cos(r);
+                      const x2 = cx + (ROTATION_RING_R + 0.15) * Math.sin(r);
+                      const y2 = cy - (ROTATION_RING_R + 0.15) * Math.cos(r);
+                      return (
+                        <line
+                          key={`rtk-${tickDeg}`}
+                          x1={x1}
+                          y1={y1}
+                          x2={x2}
+                          y2={y2}
+                          stroke="#1a1a1a"
+                          strokeWidth={tickDeg % 90 === 0 ? 0.28 : 0.16}
+                          opacity={0.5}
+                        />
+                      );
+                    })}
+                    <line
+                      x1={cx}
+                      y1={cy}
+                      x2={tickX}
+                      y2={tickY}
+                      stroke="#ff8c42"
+                      strokeWidth={0.35}
+                    />
+                    <circle
+                      cx={tickX}
+                      cy={tickY}
+                      r={0.95}
+                      fill="#ff8c42"
+                      stroke="#1a1a1a"
+                      strokeWidth={0.3}
+                      style={{
+                        pointerEvents: saving ? "none" : "auto",
+                        cursor: rotationDrag ? "grabbing" : "grab",
+                      }}
+                      onPointerDown={(e) => {
+                        if (saving) return;
+                        e.stopPropagation();
+                        e.preventDefault();
+                        (e.currentTarget as SVGCircleElement).setPointerCapture(
+                          e.pointerId,
+                        );
+                        const angle = angleFromPointer(e);
+                        setRotationDrag({
+                          id: selectedAnchor.id,
+                          angle: angle ?? selectedAnchor.rotation ?? 0,
+                        });
+                      }}
+                      onPointerMove={(e) => {
+                        if (!rotationDrag) return;
+                        if (rotationDrag.id !== selectedAnchor.id) return;
+                        const angle = angleFromPointer(e);
+                        if (angle == null) return;
+                        if (angle === rotationDrag.angle) return;
+                        setRotationDrag({
+                          id: selectedAnchor.id,
+                          angle,
+                        });
+                      }}
+                      onPointerUp={(e) => {
+                        if (!rotationDrag) return;
+                        e.stopPropagation();
+                        const id = rotationDrag.id;
+                        const angle = rotationDrag.angle;
+                        const original = selectedAnchor.rotation ?? 0;
+                        setRotationDrag(null);
+                        if (angle !== original) {
+                          void patchAnchor(id, {
+                            rotation:
+                              angle === 0
+                                ? (undefined as unknown as number)
+                                : angle,
+                          });
+                        }
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (saving) return;
+                        void patchAnchor(selectedAnchor.id, {
+                          rotation: undefined as unknown as number,
+                        });
+                      }}
+                    />
+                    <text
+                      x={cx + ROTATION_RING_R + 0.7}
+                      y={cy + 0.6}
+                      fontSize={1.7}
+                      fill="#1a1a1a"
+                      fontWeight={700}
+                      style={{ pointerEvents: "none" }}
+                    >
+                      {liveRot.toFixed(0)}°
+                    </text>
+                  </g>
+                );
+              })()}
 
             {fillPreview &&
               selectedAnchor &&
@@ -1294,7 +1694,9 @@ export default function MapView() {
               onDeleteAll={() =>
                 deleteAnchors(selectedAnchors.map((a) => a.id))
               }
+              onDuplicateAll={() => bulkDuplicate(selectedAnchors)}
               onDistribute={distributeAnchors}
+              onSwap={swapAnchors}
               onNudge={bulkNudge}
               onClose={() => setSelectedIds(new Set())}
             />
@@ -1331,6 +1733,25 @@ export default function MapView() {
               </span>
             </div>
           )}
+
+          <section className="bg-cream-dark border-2 border-ink p-3 text-[11px]">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2">
+              Overlays
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showParcelCoords}
+                onChange={(e) => setShowParcelCoords(e.target.checked)}
+                className="w-3.5 h-3.5 accent-gold"
+              />
+              <span className="font-mono">Show parcel coordinates</span>
+            </label>
+            <div className="text-[9px] text-muted italic mt-1 pl-5.5 leading-tight">
+              Each parcel shows its (x, z) origin. Use it to read off
+              coordinates for pathways and bridges.
+            </div>
+          </section>
 
           <section className="bg-cream-dark border-2 border-ink p-3 text-[11px]">
             <div className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2">
@@ -1640,6 +2061,105 @@ function DetailCard({
           >
             ↻ {anchor.facing}
           </button>
+        </div>
+      </FieldGroup>
+
+      <FieldGroup label="Rotation">
+        <div className="text-[11px] font-mono text-muted flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={(e) => {
+              const step = e.shiftKey ? 60 : e.altKey ? 3 : 15;
+              const next = normalizeRot((anchor.rotation ?? 0) - step);
+              onPatch({
+                rotation: next === 0 ? (undefined as unknown as number) : next,
+              });
+            }}
+            className="w-6 h-6 leading-none bg-cream border-2 border-ink font-bold hover:bg-cream-dark disabled:opacity-50"
+            aria-label="rotate ccw"
+            title="-15° · Shift = -60° · Alt = -3°"
+          >
+            −
+          </button>
+          <input
+            key={`rot-${anchor.rotation ?? 0}`}
+            type="number"
+            min={-180}
+            max={180}
+            step={1}
+            defaultValue={(anchor.rotation ?? 0).toFixed(0)}
+            disabled={saving}
+            onBlur={(e) => {
+              const v = parseFloat(e.target.value);
+              if (!Number.isFinite(v)) return;
+              const next = normalizeRot(v);
+              if (next === (anchor.rotation ?? 0)) return;
+              onPatch({
+                rotation: next === 0 ? (undefined as unknown as number) : next,
+              });
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
+            className="w-14 font-mono text-xs p-1 border-2 border-ink bg-cream text-center focus:outline-none focus:ring-2 focus:ring-gold disabled:opacity-50"
+          />
+          <span className="text-muted text-[10px]">°</span>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={(e) => {
+              const step = e.shiftKey ? 60 : e.altKey ? 3 : 15;
+              const next = normalizeRot((anchor.rotation ?? 0) + step);
+              onPatch({
+                rotation: next === 0 ? (undefined as unknown as number) : next,
+              });
+            }}
+            className="w-6 h-6 leading-none bg-cream border-2 border-ink font-bold hover:bg-cream-dark disabled:opacity-50"
+            aria-label="rotate cw"
+            title="+15° · Shift = +60° · Alt = +3°"
+          >
+            +
+          </button>
+          {anchor.rotation != null && anchor.rotation !== 0 && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() =>
+                onPatch({ rotation: undefined as unknown as number })
+              }
+              className="ml-1 px-1.5 h-6 leading-none bg-cream border border-muted text-[10px] text-muted hover:text-ink disabled:opacity-50"
+              aria-label="reset rotation"
+              title="Reset to 0°"
+            >
+              reset
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              const SNAPS = [0, 15, 30, 45, 90];
+              const cur = anchor.rotation ?? 0;
+              const absCur = Math.abs(cur);
+              const idx = SNAPS.indexOf(absCur);
+              const nextAbs =
+                idx === -1 ? SNAPS[1] : SNAPS[(idx + 1) % SNAPS.length];
+              const signed = cur < 0 ? -nextAbs : nextAbs;
+              onPatch({
+                rotation:
+                  signed === 0 ? (undefined as unknown as number) : signed,
+              });
+            }}
+            className="ml-2 px-2 h-6 leading-none bg-cream border-2 border-ink text-[10px] font-bold hover:bg-cream-dark disabled:opacity-50"
+            aria-label="cycle rotation snap"
+            title="Cycle 0 → 15 → 30 → 45 → 90 → 0 (keeps sign)"
+          >
+            ↺ snap
+          </button>
+        </div>
+        <div className="text-[10px] text-muted mt-1 italic">
+          Drag the ring on the map · [/] keys nudge · Shift = 60° · Alt = 3°
         </div>
       </FieldGroup>
 
@@ -2115,7 +2635,9 @@ function BulkEditPanel({
   onPatchAll,
   onPatchEach,
   onDeleteAll,
+  onDuplicateAll,
   onDistribute,
+  onSwap,
   onNudge,
   onClose,
 }: {
@@ -2124,12 +2646,15 @@ function BulkEditPanel({
   onPatchAll: (patch: Partial<AnchorT>) => void;
   onPatchEach: (fn: (a: AnchorT) => Partial<AnchorT>) => void;
   onDeleteAll: () => void;
+  onDuplicateAll: () => void;
   onDistribute: (axis: "x" | "z") => void;
-  onNudge: (axis: "x" | "z", delta: number) => void;
+  onSwap: () => void;
+  onNudge: (axis: "x" | "z" | "y", delta: number) => void;
   onClose: () => void;
 }) {
   const [tagInput, setTagInput] = useState("");
   const [yInput, setYInput] = useState("");
+  const [rotInput, setRotInput] = useState("");
   const [nudgeStep, setNudgeStep] = useState(0.25);
   const [lockAspect, setLockAspect] = useState(false);
   const n = anchors.length;
@@ -2137,6 +2662,12 @@ function BulkEditPanel({
   const allShareFacing = anchors.every((a) => a.facing === anchors[0].facing);
   const sharedFacing: FacingT | null = allShareFacing
     ? anchors[0].facing
+    : null;
+  const allShareRotation = anchors.every(
+    (a) => (a.rotation ?? 0) === (anchors[0].rotation ?? 0),
+  );
+  const sharedRotation: number | null = allShareRotation
+    ? (anchors[0].rotation ?? 0)
     : null;
   const allShareSize = anchors.every(
     (a) =>
@@ -2325,6 +2856,88 @@ function BulkEditPanel({
         )}
       </FieldGroup>
 
+      <FieldGroup label="Rotate all">
+        <div className="grid grid-cols-4 gap-1.5">
+          {[-60, -15, 15, 60].map((delta) => (
+            <button
+              key={`rd-${delta}`}
+              type="button"
+              disabled={saving}
+              onClick={() =>
+                onPatchEach((a) => ({
+                  rotation: normalizeRot((a.rotation ?? 0) + delta),
+                }))
+              }
+              className="text-[11px] font-bold border-2 border-ink py-1 bg-cream hover:bg-cream-dark disabled:opacity-50"
+              title={`Add ${delta > 0 ? "+" : ""}${delta}° to each anchor's rotation`}
+            >
+              {delta > 0 ? "+" : ""}
+              {delta}°
+            </button>
+          ))}
+        </div>
+        <div className="flex items-end gap-2 mt-2">
+          <label className="flex items-center gap-1.5 text-[11px]">
+            <span className="text-muted font-bold uppercase tracking-widest text-[10px]">
+              Rot
+            </span>
+            <input
+              type="number"
+              min={-180}
+              max={180}
+              step={1}
+              value={rotInput}
+              onChange={(e) => setRotInput(e.target.value)}
+              placeholder={
+                allShareRotation
+                  ? sharedRotation === 0
+                    ? "0"
+                    : String(sharedRotation)
+                  : "mixed"
+              }
+              disabled={saving}
+              className="w-20 font-mono text-xs p-1 border-2 border-ink bg-cream focus:outline-none focus:ring-2 focus:ring-gold disabled:opacity-50"
+            />
+            <span className="text-muted text-[10px]">°</span>
+          </label>
+          <button
+            type="button"
+            disabled={saving || rotInput.trim() === ""}
+            onClick={() => {
+              const v = parseFloat(rotInput);
+              if (!Number.isFinite(v)) return;
+              const next = normalizeRot(v);
+              onPatchAll({
+                rotation: next === 0 ? (undefined as unknown as number) : next,
+              });
+              setRotInput("");
+            }}
+            className="bg-cream border-2 border-ink px-3 py-1.5 font-bold uppercase tracking-widest text-xs disabled:opacity-40"
+            title="Set absolute rotation on every selected anchor"
+          >
+            Set
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() =>
+              onPatchAll({ rotation: undefined as unknown as number })
+            }
+            className="bg-cream border border-muted px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted hover:text-ink disabled:opacity-40"
+            title="Reset rotation to 0° on every selected anchor"
+          >
+            reset
+          </button>
+        </div>
+        <div className="text-[10px] text-muted mt-1 italic">
+          {allShareRotation
+            ? sharedRotation === 0
+              ? "All at 0°."
+              : `All at ${sharedRotation}°.`
+            : "Mixed rotations — type a value to unify, or use ± to nudge each."}
+        </div>
+      </FieldGroup>
+
       <FieldGroup label="Set allowed frames for all">
         <FrameChecks
           value={firstAllowed}
@@ -2438,6 +3051,27 @@ function BulkEditPanel({
               + {nudgeStep}m
             </button>
           </div>
+          <span className="text-[10px] font-bold text-muted">Y</span>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => onNudge("y", -nudgeStep)}
+              className="flex-1 text-xs font-bold border-2 border-ink py-1 bg-cream hover:bg-cream-dark disabled:opacity-40"
+              title={`Y -${nudgeStep}m · lower on wall`}
+            >
+              − {nudgeStep}m
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => onNudge("y", nudgeStep)}
+              className="flex-1 text-xs font-bold border-2 border-ink py-1 bg-cream hover:bg-cream-dark disabled:opacity-40"
+              title={`Y +${nudgeStep}m · raise on wall`}
+            >
+              + {nudgeStep}m
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-1.5 mt-2">
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
@@ -2463,11 +3097,12 @@ function BulkEditPanel({
         </div>
         {!allShareArea && (
           <div className="text-[10px] text-coral mt-1.5 italic font-bold">
-            Selection spans multiple floors — nudge disabled.
+            Selection spans multiple floors — X/Z nudge disabled (Y still
+            works).
           </div>
         )}
         <div className="text-[10px] text-muted mt-1 italic">
-          Arrow keys also nudge · Shift = 1m · Alt = 5cm
+          Arrows nudge X/Z · PgUp/PgDn nudge Y · Shift = 1m · Alt = 5cm
         </div>
       </FieldGroup>
 
@@ -2496,6 +3131,23 @@ function BulkEditPanel({
           {n < 3
             ? `Need 3+ anchors to distribute (have ${n}).`
             : "Endpoints (min/max on axis) stay put, middles get equal spacing."}
+        </div>
+      </FieldGroup>
+
+      <FieldGroup label="Swap positions">
+        <button
+          type="button"
+          disabled={saving || n !== 2}
+          onClick={onSwap}
+          className="w-full text-[11px] font-bold border-2 border-ink py-1.5 bg-cream hover:bg-cream-dark disabled:opacity-40"
+          title="Trade the two anchors' floor, position, height, and wall — pieces and sizes stay with their anchor"
+        >
+          ⇄ Swap the two
+        </button>
+        <div className="text-[10px] text-muted mt-1 italic">
+          {n !== 2
+            ? `Select exactly 2 anchors to swap (have ${n}).`
+            : "Each anchor takes the other's floor, spot, height, and wall. Pieces, sizes, and tags stay put."}
         </div>
       </FieldGroup>
 
@@ -2530,6 +3182,15 @@ function BulkEditPanel({
       </FieldGroup>
 
       <div className="flex flex-wrap gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onDuplicateAll}
+          disabled={saving}
+          className="bg-gold border-2 border-ink px-3 py-1.5 font-bold uppercase tracking-widest text-xs disabled:opacity-40"
+          title={`Clone all ${n} selected anchors · each duplicate offset 1m along its facing axis · new IDs are <source>-2/-3/...`}
+        >
+          Duplicate {n}
+        </button>
         <button
           type="button"
           onClick={() => onPatchAll({ pieceId: null })}

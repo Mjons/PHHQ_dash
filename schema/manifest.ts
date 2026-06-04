@@ -29,7 +29,7 @@ export const Area = z.enum([
 
 // Sub-enum of Area covering only the Vault Tower floors. Used as the typed
 // key of `Manifest.vaultResidencies` so per-floor configs can't accidentally
-// be written for non-VT areas. See docs/VAULT_TIPPING_PLAN.md.
+// be written for non-VT areas. See docs/archive/VAULT_TIPPING_PLAN.md.
 export const VTFloor = z.enum(["vt2", "vt3", "vt4", "vt5", "vt6"]);
 
 // 0x-prefixed 40-char hex address. EIP-55 checksum is verified client-side
@@ -46,7 +46,7 @@ export const Piece = z.object({
   // decode. Dashboard previews always use `src` (so the curator sees the
   // motion in the picker); the scene reads `poster ?? src`. Required in
   // practice for any piece a curator places in-room with a video src —
-  // without it, the scene errors out on texture load. See docs/SCENE_VIDEO_POSTER.md.
+  // without it, the scene errors out on texture load. See docs/archive/SCENE_VIDEO_POSTER.md.
   poster: httpUrl.optional(),
   aspect: z.number().positive(),
   preferredFrame: FrameKind,
@@ -67,6 +67,13 @@ export const Anchor = z.object({
   // should use this exact value. Curator-set via the map dashboard.
   y: z.number().nonnegative().optional(),
   facing: Facing,
+  // Rotation about the surface normal, in degrees, CW positive when looking
+  // AT the piece from where a visitor stands. Range [-180, 180]. Absent = 0
+  // (top of frame points up — current behavior). Curator-set via the map
+  // dashboard's rotation ring / detail-card numeric input. Schema is degrees
+  // so the wire format matches what the curator types; scene converts to
+  // radians on read. See docs/MAP_ANCHOR_ROTATION_PLAN.md.
+  rotation: z.number().min(-180).max(180).optional(),
   maxWidth: z.number().positive(),
   maxHeight: z.number().positive(),
   allowedFrames: z.array(FrameKind).optional(),
@@ -145,7 +152,7 @@ export const BookAnchor = z.object({
 // =========================================================
 // Music — global venue audio. v1 is one library of uploaded tracks plus a
 // single `nowPlaying` switch that selects which one (or a live stream) the
-// scene plays venue-wide. See docs/MUSIC_HOSTING_PLAN.md.
+// scene plays venue-wide. See docs/archive/MUSIC_HOSTING_PLAN.md.
 // =========================================================
 
 export const TrackMime = z.enum(["audio/mpeg", "audio/mp4", "audio/ogg"]);
@@ -204,7 +211,7 @@ export const NowPlaying = z.discriminatedUnion("kind", [
 // Tip *state* (totals, last-tip time, gold-frame override) is intentionally
 // NOT on the manifest — it's a separate Redis namespace served by /api/tips
 // to avoid bumping manifest version on every on-chain tip. See
-// docs/VAULT_TIPPING_PLAN.md.
+// docs/archive/VAULT_TIPPING_PLAN.md.
 // =========================================================
 
 export const VaultResidency = z.object({

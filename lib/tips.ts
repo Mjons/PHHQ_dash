@@ -1,7 +1,7 @@
 import { redis } from "@/lib/redis";
 import { VAULT_FLOORS, type VTFloorT } from "@/schema/manifest";
 
-// Tip state lives OUTSIDE the manifest. Rationale (docs/VAULT_TIPPING_PLAN.md
+// Tip state lives OUTSIDE the manifest. Rationale (docs/archive/VAULT_TIPPING_PLAN.md
 // §"Storage split"): the manifest is edge-cached and version-bumped per write;
 // mutating it on every on-chain tip would pollute version history with
 // financial events that don't belong to the curator's edit timeline.
