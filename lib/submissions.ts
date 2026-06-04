@@ -47,6 +47,16 @@ function norm(wallet: string): string {
   return wallet.toLowerCase();
 }
 
+// Deterministic piece id for a submission promoted into the manifest's pieces
+// collection. Derived from the wallet so re-promoting the same submission is
+// idempotent (overwrites the same piece rather than duplicating). Used by the
+// submissions gallery's "Add to pieces" action. Kept here (server-safe) and
+// passed to the client button as a prop so the button needn't import this
+// redis-backed module.
+export function submissionPieceId(wallet: string): string {
+  return `submission-${norm(wallet).slice(2, 12)}`;
+}
+
 // Record a player's comic submission. Idempotent per wallet: a re-submission
 // overwrites the prior comic/name and refreshes the timestamp (the blob upload
 // uses the same wallet-derived path, so it overwrites too).
