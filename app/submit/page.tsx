@@ -1,5 +1,6 @@
 import SubmitClient from "./submit-client";
 import RedeemClient from "./redeem-client";
+import RedeemEntry from "./redeem-entry";
 import { isWalletAddress } from "@/lib/submissions";
 
 export const metadata = { title: "Make Your Mark — Panel Haus" };
@@ -74,6 +75,10 @@ export default async function SubmitPage({
             </p>
           </section>
         )}
+
+        {/* Prize-code fallback — most players arrive with ?code= prefilled and
+            never see this, but anyone can paste a code here to claim. */}
+        <RedeemEntry />
       </div>
     </main>
   );

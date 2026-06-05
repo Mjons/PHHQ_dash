@@ -55,6 +55,7 @@ export default async function RootLayout({
               <NavLink href="/vault">Vault</NavLink>
               <NavLink href="/import">Import</NavLink>
               <NavLink href="/admin/submissions">Submissions</NavLink>
+              <NavLink href="/admin/rewards">Rewards</NavLink>
               <NavLink href="/admin/blob-orphans">Orphans</NavLink>
             </nav>
           </>
