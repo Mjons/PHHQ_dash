@@ -1,21 +1,50 @@
 import SubmitClient from "./submit-client";
+import RedeemClient from "./redeem-client";
 import { isWalletAddress } from "@/lib/submissions";
 
 export const metadata = { title: "Make Your Mark — Panel Haus" };
 
-// Player-facing Creator Quest Q5 entry point. The scene opens this via
-// openExternalUrl(buildSubmitUrl()) → /submit?wallet=0x... . Anonymous: players
-// are not curators, so this route is allowlisted in proxy.ts.
+const CODE_RE = /^PHAUS-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+
+// Player-facing Creator Quest entry point. The scene opens this via
+// openExternalUrl → /submit . Two modes share the page:
+//   ?wallet=0x...   → Q5 "Make Your Mark" comic upload (SubmitClient)
+//   ?code=PHAUS-... → Q6 "The Commute" prize claim (RedeemClient)
+// Anonymous either way (players aren't curators), so it's allowlisted in proxy.ts.
 //
 // Next 16: searchParams is a Promise and must be awaited.
 export default async function SubmitPage({
   searchParams,
 }: {
-  searchParams: Promise<{ wallet?: string }>;
+  searchParams: Promise<{ wallet?: string; code?: string }>;
 }) {
-  const { wallet } = await searchParams;
+  const { wallet, code } = await searchParams;
   const validWallet =
     typeof wallet === "string" && isWalletAddress(wallet) ? wallet : null;
+  const validCode =
+    typeof code === "string" && CODE_RE.test(code.trim().toUpperCase())
+      ? code.trim().toUpperCase()
+      : null;
+
+  // Prize claim takes precedence — a player arriving with a code is finishing
+  // Q6, not submitting a comic.
+  if (validCode) {
+    return (
+      <main className="min-h-screen bg-cream text-ink flex justify-center px-5 py-8">
+        <div className="max-w-md w-full flex flex-col gap-6">
+          <header>
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted">
+              Panel Haus · Creator Quest
+            </div>
+            <h1 className="font-black text-3xl uppercase tracking-wide mt-1">
+              Claim Your Prize
+            </h1>
+          </header>
+          <RedeemClient code={validCode} />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-cream text-ink flex justify-center px-5 py-8">

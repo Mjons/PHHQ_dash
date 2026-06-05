@@ -50,6 +50,18 @@ export default function proxy(req: NextRequest) {
     pathname === "/api/quest-status";
   const isQuestSubmit =
     req.method === "POST" && pathname === "/api/quest/submit";
+  // Q6 "The Commute" prize codes. issue/status are signedFetch endpoints the
+  // scene calls (identity from the auth-chain header, not a session) — OPTIONS
+  // preflight must pass too. redeem is the same-origin POST from the /submit page.
+  const isRewardIssue =
+    (req.method === "POST" || req.method === "OPTIONS") &&
+    pathname === "/api/reward/issue";
+  const isRewardStatus =
+    (req.method === "GET" || req.method === "OPTIONS") &&
+    pathname === "/api/reward/status";
+  const isRewardRedeem =
+    (req.method === "POST" || req.method === "OPTIONS") &&
+    pathname === "/api/reward/redeem";
   const isSubmitPage = pathname === "/submit";
   // The Creator Quest submissions gallery is intentionally PUBLIC (no curator
   // password), unlike the rest of /admin. It exposes submitter wallets, DCL
@@ -67,6 +79,9 @@ export default function proxy(req: NextRequest) {
     isTipWebhook ||
     isQuestStatusRead ||
     isQuestSubmit ||
+    isRewardIssue ||
+    isRewardStatus ||
+    isRewardRedeem ||
     isSubmitPage ||
     isSubmissionsPage
   ) {
