@@ -63,6 +63,11 @@ export default function proxy(req: NextRequest) {
     (req.method === "POST" || req.method === "OPTIONS") &&
     pathname === "/api/reward/redeem";
   const isSubmitPage = pathname === "/submit";
+  // DUMPSTR raffle: public capture page + its anonymous write. Trust-on-write
+  // (the only stake is a raffle slot); the admin draw tool stays gated.
+  const isRafflePage = pathname === "/dumpstr-raffle";
+  const isRaffleWrite =
+    req.method === "POST" && pathname === "/api/dumpstr-raffle";
   // The Creator Quest submissions gallery is intentionally PUBLIC (no curator
   // password), unlike the rest of /admin. It exposes submitter wallets, DCL
   // names, and comic images by design.
@@ -83,7 +88,9 @@ export default function proxy(req: NextRequest) {
     isRewardStatus ||
     isRewardRedeem ||
     isSubmitPage ||
-    isSubmissionsPage
+    isSubmissionsPage ||
+    isRafflePage ||
+    isRaffleWrite
   ) {
     return NextResponse.next();
   }
