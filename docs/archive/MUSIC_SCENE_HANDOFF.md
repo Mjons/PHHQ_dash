@@ -283,18 +283,10 @@ If any of these become real asks, they all layer cleanly on top of the current s
 {
   "version": 42,
   "updatedAt": "2026-05-23T14:00:00.000Z",
-  "pieces": {
-    /* existing */
-  },
-  "anchors": [
-    /* existing */
-  ],
-  "series": [
-    /* existing */
-  ],
-  "bookAnchors": [
-    /* existing */
-  ],
+  "pieces": {/* existing */},
+  "anchors": [/* existing */],
+  "series": [/* existing */],
+  "bookAnchors": [/* existing */],
   "tracks": {
     "ambient-01": {
       "id": "ambient-01",

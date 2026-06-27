@@ -14,7 +14,14 @@ export type RaffleEntry = {
   ethWallet: string | null; // optional, captured from ?wallet if present
   ts: number; // epoch ms
   verified?: boolean; // operator confirmed the post + tags
+  won?: boolean; // already won a draw — excluded from future draws
+  team?: boolean; // team / internal — never eligible
 };
+
+// Operator-settable flags on an entry. `won` and `team` both remove the
+// entrant from the eligible pool; `verified` is the post-confirmed marker.
+export const ENTRY_FLAGS = ["verified", "won", "team"] as const;
+export type EntryFlag = (typeof ENTRY_FLAGS)[number];
 
 export type RaffleDraw = {
   seed: string; // hex; makes the draw reproducible/auditable
@@ -112,24 +119,28 @@ export async function addEntry(
     postUrl: postUrl ?? existing?.postUrl ?? null,
     ethWallet: ethWallet ?? existing?.ethWallet ?? null,
     ts: existing?.ts ?? Date.now(),
-    // A changed post link can't keep an old verification.
+    // A changed post link can't keep an old verification. Operator decisions
+    // about the person (won / team) survive a re-submit.
     verified:
       existing && existing.postUrl === postUrl ? existing.verified : false,
+    won: existing?.won,
+    team: existing?.team,
   };
   await redis.hset(ENTRIES_KEY, { [key]: entry });
   return !existing;
 }
 
-// Operator marks an entrant verified (post confirmed) or not. No-op if the
-// entrant doesn't exist.
-export async function setVerified(
+// Operator toggles a flag (verified / won / team) on an entrant. `won` and
+// `team` exclude them from the draw. No-op if the entrant doesn't exist.
+export async function setEntryFlag(
   solWallet: string,
-  verified: boolean,
+  flag: EntryFlag,
+  value: boolean,
 ): Promise<void> {
   const key = solWallet.trim();
   const existing = await redis.hget<RaffleEntry>(ENTRIES_KEY, key);
   if (!existing) return;
-  await redis.hset(ENTRIES_KEY, { [key]: { ...existing, verified } });
+  await redis.hset(ENTRIES_KEY, { [key]: { ...existing, [flag]: value } });
 }
 
 export async function readAllEntries(): Promise<RaffleEntry[]> {
@@ -157,14 +168,18 @@ function mulberry32(seed: number): () => number {
 }
 
 // Draw N distinct winners over the sorted entrant list using a fresh random
-// seed, then persist the draw record. With `verifiedOnly`, only entrants the
-// operator confirmed are eligible. Returns the draw.
+// seed, then persist the draw record. Past winners (`won`) and team entries
+// (`team`) are always excluded; with `verifiedOnly`, only operator-confirmed
+// entrants are eligible. Winners are marked `won` so a re-draw never repeats
+// them. Returns the draw.
 export async function drawWinners(
   n: number,
   verifiedOnly = false,
 ): Promise<RaffleDraw> {
   const entries = await readAllEntries();
-  const eligible = verifiedOnly ? entries.filter((e) => e.verified) : entries;
+  const eligible = entries.filter(
+    (e) => !e.won && !e.team && (!verifiedOnly || e.verified),
+  );
   const pool = eligible.map((e) => e.solWallet);
   const count = Math.max(1, Math.min(n, pool.length));
 
@@ -180,6 +195,11 @@ export async function drawWinners(
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   const winners = shuffled.slice(0, count);
+
+  // Mark the winners won so they drop out of the eligible pool next time.
+  for (const w of winners) {
+    await setEntryFlag(w, "won", true);
+  }
 
   const draw: RaffleDraw = {
     seed: seed.toString(16),

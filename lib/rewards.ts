@@ -101,8 +101,7 @@ export async function getStatus(
 }
 
 export type RedeemResult =
-  | { ok: true; quest: string }
-  | { ok: false; reason: "not-found" | "already" };
+  { ok: true; quest: string } | { ok: false; reason: "not-found" | "already" };
 
 // One-time redemption, enforced ONCE PER WALLET per quest. The per-wallet
 // `redeemed:` key is reserved with SET NX — that reservation is the atomic gate

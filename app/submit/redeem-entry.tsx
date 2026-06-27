@@ -5,13 +5,7 @@ import { useState } from "react";
 const CODE_RE = /^PHAUS-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 
 type Status =
-  | "idle"
-  | "claiming"
-  | "done"
-  | "already"
-  | "notfound"
-  | "invalid"
-  | "error";
+  "idle" | "claiming" | "done" | "already" | "notfound" | "invalid" | "error";
 
 // Manual prize-code entry — the fallback for a player who lands on /submit
 // without ?code= (e.g. typed the page in by hand). The in-world quest log +

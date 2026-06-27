@@ -57,10 +57,7 @@ export async function postImport(
 }
 
 export type BookUploadKind =
-  | "series-cover"
-  | "front"
-  | "back"
-  | `page-${string}`;
+  "series-cover" | "front" | "back" | `page-${string}`;
 
 export async function uploadTrack(
   file: File,

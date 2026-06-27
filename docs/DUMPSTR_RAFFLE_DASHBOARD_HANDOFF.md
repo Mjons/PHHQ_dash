@@ -117,8 +117,9 @@ spirit as the in-scene capture curators):
 2. **Draw N winners** — random selection with a **stored seed** so the draw is
    **auditable/verifiable** (e.g. seeded PRNG over the sorted entrant list; persist
    `{ seed, drawnAt, winners[] }`). Don't draw with an unseeded `Math.random()` you
-   can't reproduce. (If you want only verified posts eligible, add a `verified` flag
-   and draw from `entries.filter(e => e.verified)`.)
+   can't reproduce. Entries flagged `won` (a previous winner) or `team` are excluded
+   from the pool, and winners are auto-flagged `won` so a re-draw never repeats them.
+   An optional "verified only" toggle further restricts the pool to `verified` posts.
 3. **Mark + export** — flag winners and **export the winning SOL wallets + post URLs**
    (CSV/JSON) for the DUMPSTR NFT airdrop.
 4. _(Optional)_ surface "you won" back through `/api/quest-status`
@@ -137,7 +138,8 @@ dumpstrRaffleEntries: {
     quest: 'one-mans-trash',
     ts: number,                // epoch ms
     verified?: boolean,        // optional: operator confirmed the post + tags
-    won?: boolean              // set by the draw
+    won?: boolean,             // set by the draw; excluded from future draws
+    team?: boolean             // team / internal; never eligible
   }
 }
 raffleDraws: [

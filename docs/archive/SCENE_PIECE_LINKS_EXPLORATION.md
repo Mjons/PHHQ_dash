@@ -50,9 +50,7 @@ After `FRAMES[kind]({ … })` spawns the frame, grab the entity it returns and a
 ```ts
 // inside buildArtwork(), after spawning the frame for an anchor:
 if (piece.link) {
-  const entity = FRAMES[kind]({
-    /* … */
-  }); // assumes frames return entity
+  const entity = FRAMES[kind]({/* … */}); // assumes frames return entity
   PointerEvents.create(entity, {
     pointerEvents: [
       {
@@ -68,9 +66,7 @@ if (piece.link) {
   pointerEventsSystem.onPointerDown(
     {
       entity,
-      opts: {
-        /* same as above */
-      },
+      opts: {/* same as above */},
     },
     () => {
       void openExternalUrl({ url: piece.link! });

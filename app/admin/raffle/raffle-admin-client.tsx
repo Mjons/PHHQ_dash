@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { RaffleEntry, RaffleDraw } from "@/lib/raffle";
+import type { RaffleEntry, RaffleDraw, EntryFlag } from "@/lib/raffle";
 
 function fmtTime(ts: number): string {
   return new Date(ts).toLocaleString();
@@ -23,6 +23,30 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
+// A small toggle pill for an entry flag. `on` colors it; click flips it.
+function FlagToggle({
+  label,
+  on,
+  onColor,
+  onClick,
+}: {
+  label: string;
+  on: boolean;
+  onColor: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 border-[3px] border-ink px-2 py-1 text-[10px] font-black uppercase tracking-widest shadow-[2px_2px_0_var(--color-ink)] ${
+        on ? onColor : "bg-cream hover:bg-gold"
+      }`}
+    >
+      {on ? `${label} ✓` : label}
+    </button>
+  );
+}
+
 export default function RaffleAdminClient({
   entries: initialEntries,
   draws,
@@ -38,32 +62,29 @@ export default function RaffleAdminClient({
   const [latest, setLatest] = useState<RaffleDraw | null>(draws.at(-1) ?? null);
 
   const verifiedCount = entries.filter((e) => e.verified).length;
+  // Who the draw would actually consider, mirroring lib/raffle.drawWinners.
+  const eligible = entries.filter(
+    (e) => !e.won && !e.team && (!verifiedOnly || e.verified),
+  );
 
-  async function toggleVerified(entry: RaffleEntry) {
-    const next = !entry.verified;
+  async function setFlag(entry: RaffleEntry, flag: EntryFlag, value: boolean) {
+    const prev = entries;
     // Optimistic.
-    setEntries((prev) =>
-      prev.map((e) =>
-        e.solWallet === entry.solWallet ? { ...e, verified: next } : e,
+    setEntries((es) =>
+      es.map((e) =>
+        e.solWallet === entry.solWallet ? { ...e, [flag]: value } : e,
       ),
     );
     try {
-      const res = await fetch("/api/admin/raffle/verify", {
+      const res = await fetch("/api/admin/raffle/flag", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ solWallet: entry.solWallet, verified: next }),
+        body: JSON.stringify({ solWallet: entry.solWallet, flag, value }),
       });
       if (!res.ok) throw new Error();
     } catch {
-      // Roll back on failure.
-      setEntries((prev) =>
-        prev.map((e) =>
-          e.solWallet === entry.solWallet
-            ? { ...e, verified: entry.verified }
-            : e,
-        ),
-      );
-      setError("Couldn't save that verify toggle — try again.");
+      setEntries(prev); // roll back
+      setError(`Couldn't save the ${flag} toggle — try again.`);
     }
   }
 
@@ -81,7 +102,14 @@ export default function RaffleAdminClient({
         setError(data?.error || `Draw failed (${res.status}).`);
         return;
       }
-      setLatest(data.draw as RaffleDraw);
+      const drawn = data.draw as RaffleDraw;
+      setLatest(drawn);
+      // Winners are marked `won` server-side — reflect that locally so they
+      // drop out of the eligible pool immediately.
+      const winners = new Set(drawn.winners);
+      setEntries((es) =>
+        es.map((e) => (winners.has(e.solWallet) ? { ...e, won: true } : e)),
+      );
     } catch {
       setError("Network error — try again.");
     } finally {
@@ -91,11 +119,21 @@ export default function RaffleAdminClient({
 
   function exportCsv() {
     const rows = [
-      ["solWallet", "postUrl", "verified", "ethWallet", "enteredAt"],
+      [
+        "solWallet",
+        "postUrl",
+        "verified",
+        "won",
+        "team",
+        "ethWallet",
+        "enteredAt",
+      ],
       ...entries.map((e) => [
         e.solWallet,
         e.postUrl ?? "",
         e.verified ? "yes" : "no",
+        e.won ? "yes" : "no",
+        e.team ? "yes" : "no",
         e.ethWallet ?? "",
         new Date(e.ts).toISOString(),
       ]),
@@ -124,9 +162,8 @@ export default function RaffleAdminClient({
           </h1>
           <p className="text-sm text-muted mt-2">
             {entries.length} entrant{entries.length === 1 ? "" : "s"} ·{" "}
-            {verifiedCount} verified. Open each post link and confirm it tags{" "}
-            <span className="font-bold">@panelhaus</span> +{" "}
-            <span className="font-bold">#smudgethesponge</span> before drawing.
+            {eligible.length} eligible · {verifiedCount} verified. Past winners
+            and team entries are excluded automatically.
           </p>
         </header>
 
@@ -140,7 +177,7 @@ export default function RaffleAdminClient({
               <input
                 type="number"
                 min={1}
-                max={Math.max(1, entries.length)}
+                max={Math.max(1, eligible.length)}
                 value={n}
                 onChange={(e) => setN(Math.max(1, Number(e.target.value) || 1))}
                 className="w-20 border-[3px] border-ink bg-cream px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold"
@@ -148,7 +185,7 @@ export default function RaffleAdminClient({
             </label>
             <button
               onClick={draw}
-              disabled={drawing || entries.length === 0}
+              disabled={drawing || eligible.length === 0}
               className="border-[3px] border-ink bg-ink px-4 py-3 font-black uppercase tracking-widest text-cream shadow-[4px_4px_0_var(--color-gold)] disabled:opacity-50"
             >
               {drawing ? "Drawing…" : "Draw winner"}
@@ -163,7 +200,6 @@ export default function RaffleAdminClient({
             />
             <span>
               Only draw <span className="font-bold">verified</span> entrants
-              {verifiedOnly && ` (${verifiedCount} eligible)`}
             </span>
           </label>
           {error && <p className="text-sm font-bold text-red-700">{error}</p>}
@@ -207,39 +243,58 @@ export default function RaffleAdminClient({
             <p className="text-sm text-muted">No entries yet.</p>
           ) : (
             <ul className="flex flex-col gap-2">
-              {entries.map((e) => (
-                <li
-                  key={e.solWallet}
-                  className="flex flex-col gap-1 border-[3px] border-ink bg-cream px-3 py-2"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <code className="text-sm break-all">{e.solWallet}</code>
-                    <button
-                      onClick={() => toggleVerified(e)}
-                      className={`shrink-0 border-[3px] border-ink px-2 py-1 text-[10px] font-black uppercase tracking-widest shadow-[2px_2px_0_var(--color-ink)] ${
-                        e.verified ? "bg-green-300" : "bg-cream hover:bg-gold"
-                      }`}
-                    >
-                      {e.verified ? "Verified ✓" : "Mark verified"}
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 text-[11px] text-muted">
+              {entries.map((e) => {
+                const excluded = e.won || e.team;
+                return (
+                  <li
+                    key={e.solWallet}
+                    className={`flex flex-col gap-1.5 border-[3px] border-ink px-3 py-2 ${
+                      excluded ? "bg-cream-dark opacity-60" : "bg-cream"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <code className="text-sm break-all">{e.solWallet}</code>
+                      <span className="text-[11px] text-muted whitespace-nowrap">
+                        {fmtTime(e.ts)}
+                      </span>
+                    </div>
                     {e.postUrl ? (
                       <a
                         href={e.postUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="underline decoration-2 underline-offset-2 break-all"
+                        className="text-[11px] text-muted underline decoration-2 underline-offset-2 break-all"
                       >
                         {e.postUrl}
                       </a>
                     ) : (
-                      <span className="italic">no post link</span>
+                      <span className="text-[11px] italic text-muted">
+                        no post link
+                      </span>
                     )}
-                    <span className="whitespace-nowrap">{fmtTime(e.ts)}</span>
-                  </div>
-                </li>
-              ))}
+                    <div className="flex flex-wrap gap-2 pt-0.5">
+                      <FlagToggle
+                        label="Verified"
+                        on={!!e.verified}
+                        onColor="bg-green-300"
+                        onClick={() => setFlag(e, "verified", !e.verified)}
+                      />
+                      <FlagToggle
+                        label="Won"
+                        on={!!e.won}
+                        onColor="bg-gold"
+                        onClick={() => setFlag(e, "won", !e.won)}
+                      />
+                      <FlagToggle
+                        label="Team"
+                        on={!!e.team}
+                        onColor="bg-blue-300"
+                        onClick={() => setFlag(e, "team", !e.team)}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
