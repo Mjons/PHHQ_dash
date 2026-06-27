@@ -48,20 +48,35 @@ Opened from the scene via `openExternalUrl` →
 
 1. Read `wallet` (the player's ETH identity) from the query param.
 2. Present a **DUMPSTR-branded capture form** (green #4cae4c / banana — see the
-   `src/whitelabel/dumpstr/` skin for visual language): one field, **"drop your
-   Solana wallet,"** + a submit button. Copy can lean on the brand: "feed the dump
-   — a banger prints. winners drawn from the bag."
-3. **Validate the SOL address** before accepting: base58, decodes to 32 bytes
-   (≈32–44 chars). Reject ETH-looking `0x…` input with a clear error.
-4. On submit, **upsert keyed on the ETH wallet**:
-   `entries[ethWallet] = { solWallet, ethWallet, quest: 'one-mans-trash', ts }`.
+   `src/whitelabel/dumpstr/` skin for visual language). Copy can lean on the brand:
+   "feed the dump — a banger prints. winners drawn from the bag."
+3. **Show the entry requirements prominently at the top** (numbered, can't-miss) —
+   this is a post-to-enter contest, not just a wallet drop:
+
+   > **HOW TO ENTER THE DUMPSTR GTD RAFFLE**
+   >
+   > 1. **Make a meme** at **memes.panelhaus.app**
+   > 2. **Post it on X** tagging **@panelhaus** with **#smudgethesponge**
+   > 3. **Drop your Solana wallet + your post link below**
+
+4. **Fields:**
+   - **Solana wallet** (required) — **validate**: base58, decodes to 32 bytes
+     (≈32–44 chars); reject ETH-looking `0x…` input with a clear error.
+   - **Post link** (required, recommended) — URL of the X post. Lets the operator
+     verify the post + tags before drawing. Light validation (looks like an
+     x.com/twitter.com URL) is enough; the real check is at draw time.
+5. On submit, **upsert keyed on the ETH wallet**:
+   `entries[ethWallet] = { solWallet, postUrl, ethWallet, quest: 'one-mans-trash', ts }`.
    Re-visits update the same row (no dupes). The scene only needs the boolean back.
-5. Show a confirmation state ("you're in the dump — winners drawn after launch")
+6. Show a confirmation state ("you're in the dump — winners drawn after launch")
    so the player gets instant feedback (the scene poll confirms a few seconds later).
 
 If `wallet` is absent (page opened directly), fall back to asking for the ETH
 address or a manual code path — the scene's confirm poll just won't fire, which is
 the correct degrade (same as `/submit`).
+
+**Tags are exact:** **@panelhaus** and **#smudgethesponge** — render them
+copy-pasteable so entrants get them right (mismatched tags = unverifiable entry).
 
 **Phantom connect** can replace the paste field later; the stored shape is identical.
 
@@ -96,13 +111,16 @@ no-store`. Never behind the shared `/api/manifest` CDN cache.
 A gated internal page/endpoint (behind your existing operator auth — same allowlist
 spirit as the in-scene capture curators):
 
-1. **List entrants** — table of `{ ethWallet, solWallet, ts }`, with a count.
+1. **List entrants** — table of `{ ethWallet, solWallet, postUrl, ts }`, with a count.
+   Make `postUrl` a clickable link so the operator can open each post and confirm it
+   tags **@panelhaus** + **#smudgethesponge** before (or after) the draw.
 2. **Draw N winners** — random selection with a **stored seed** so the draw is
    **auditable/verifiable** (e.g. seeded PRNG over the sorted entrant list; persist
    `{ seed, drawnAt, winners[] }`). Don't draw with an unseeded `Math.random()` you
-   can't reproduce.
-3. **Mark + export** — flag winners and **export the winning SOL wallets** (CSV/JSON)
-   for the DUMPSTR NFT airdrop.
+   can't reproduce. (If you want only verified posts eligible, add a `verified` flag
+   and draw from `entries.filter(e => e.verified)`.)
+3. **Mark + export** — flag winners and **export the winning SOL wallets + post URLs**
+   (CSV/JSON) for the DUMPSTR NFT airdrop.
 4. _(Optional)_ surface "you won" back through `/api/quest-status`
    (`dumpstrRaffleWon: true`) so the scene can congratulate the winner in-world later.
 
@@ -114,9 +132,11 @@ spirit as the in-scene capture curators):
 dumpstrRaffleEntries: {
   [ethWallet: string]: {       // dedupe key (lowercased)
     solWallet: string,         // base58, validated; payout target
+    postUrl: string,           // X post tagging @panelhaus + #smudgethesponge
     ethWallet: string,
     quest: 'one-mans-trash',
     ts: number,                // epoch ms
+    verified?: boolean,        // optional: operator confirmed the post + tags
     won?: boolean              // set by the draw
   }
 }
@@ -129,14 +149,15 @@ raffleDraws: [
 
 ## End-to-end flow
 
-1. Player finishes the salvage hunt → Mulligan's finale surfaces the CTA → scene opens
-   `/dumpstr-raffle?wallet=0xPLAYER`.
-2. Player drops their SOL wallet → `entries[0xPLAYER] = { solWallet, … }`.
+1. Player finishes the salvage hunt → Dumpy's finale sends them to make a meme at
+   **memes.panelhaus.app** and to the raffle page `/dumpstr-raffle?wallet=0xPLAYER`.
+2. Player **makes a meme**, **posts it on X** tagging **@panelhaus** + **#smudgethesponge**,
+   then drops their **SOL wallet + post link** → `entries[0xPLAYER] = { solWallet, postUrl, … }`.
 3. Scene's 15s poll hits `/api/quest-status` signed as `0xPLAYER` →
    `{ dumpstrRaffleEntered: true }`.
-4. Scene `advanceStep('raffle')` → `completeQuest('one-mans-trash')` + claim-code caption.
-5. **Later (operator):** run the draw → export winning SOL wallets → CyberKongz airdrops
-   the DUMPSTR NFT(s).
+4. Scene `advanceStep('raffle')` → … → `completeQuest('one-mans-trash')` + claim-code caption.
+5. **Later (operator):** verify posts → run the seeded draw → export winning SOL wallets
+   → CyberKongz airdrops the DUMPSTR NFT(s).
 
 ---
 
@@ -167,8 +188,10 @@ raffleDraws: [
 
 ## Acceptance criteria
 
-- [ ] `GET /dumpstr-raffle?wallet=0x…` renders the branded form, validates SOL input,
-      upserts keyed on ETH wallet, shows a confirm state.
+- [ ] `GET /dumpstr-raffle?wallet=0x…` renders the branded form **with the numbered
+      entry instructions** (make a meme → post with @panelhaus + #smudgethesponge →
+      drop wallet + post link), validates SOL input, captures the post URL, upserts
+      keyed on ETH wallet, shows a confirm state.
 - [ ] `GET /api/quest-status` returns `dumpstrRaffleEntered` for the verified signer,
       `private, no-store`, not shared-cached.
 - [ ] Operator draw tool: list, seeded/auditable draw of N winners, mark, export SOL wallets.

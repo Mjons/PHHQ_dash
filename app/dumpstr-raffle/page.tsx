@@ -1,6 +1,6 @@
 import RaffleClient from "./raffle-client";
 
-export const metadata = { title: "DUMPSTR Raffle — drop your SOL bag" };
+export const metadata = { title: "DUMPSTR Raffle — drop your SOL address" };
 
 // Player-facing DUMPSTR raffle entry. The "One Man's Trash" finale (Mulligan
 // the dumpster ape on F3) opens this via openExternalUrl. Reduced scope: we
@@ -24,11 +24,11 @@ export default async function DumpstrRafflePage({
             DUMPSTR · One Man&apos;s Trash
           </div>
           <h1 className="font-black text-3xl uppercase tracking-wide mt-1">
-            Drop your SOL bag
+            Drop your SOL address
           </h1>
           <p className="text-sm text-muted mt-2">
-            Feed the dump — a banger prints. Paste your Solana wallet to enter
-            the raffle; winners get the DUMPSTR drop airdropped straight to it.
+            Feed the dump — a banger prints. Winners get the DUMPSTR drop
+            airdropped straight to their wallet.
           </p>
         </header>
 

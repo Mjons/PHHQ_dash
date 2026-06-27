@@ -24,16 +24,48 @@ function CopyButton({ value }: { value: string }) {
 }
 
 export default function RaffleAdminClient({
-  entries,
+  entries: initialEntries,
   draws,
 }: {
   entries: RaffleEntry[];
   draws: RaffleDraw[];
 }) {
+  const [entries, setEntries] = useState(initialEntries);
   const [n, setN] = useState(1);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [latest, setLatest] = useState<RaffleDraw | null>(draws.at(-1) ?? null);
+
+  const verifiedCount = entries.filter((e) => e.verified).length;
+
+  async function toggleVerified(entry: RaffleEntry) {
+    const next = !entry.verified;
+    // Optimistic.
+    setEntries((prev) =>
+      prev.map((e) =>
+        e.solWallet === entry.solWallet ? { ...e, verified: next } : e,
+      ),
+    );
+    try {
+      const res = await fetch("/api/admin/raffle/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ solWallet: entry.solWallet, verified: next }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      // Roll back on failure.
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.solWallet === entry.solWallet
+            ? { ...e, verified: entry.verified }
+            : e,
+        ),
+      );
+      setError("Couldn't save that verify toggle — try again.");
+    }
+  }
 
   async function draw() {
     setDrawing(true);
@@ -42,7 +74,7 @@ export default function RaffleAdminClient({
       const res = await fetch("/api/admin/raffle/draw", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ n }),
+        body: JSON.stringify({ n, verifiedOnly }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -59,14 +91,18 @@ export default function RaffleAdminClient({
 
   function exportCsv() {
     const rows = [
-      ["solWallet", "ethWallet", "enteredAt"],
+      ["solWallet", "postUrl", "verified", "ethWallet", "enteredAt"],
       ...entries.map((e) => [
         e.solWallet,
+        e.postUrl ?? "",
+        e.verified ? "yes" : "no",
         e.ethWallet ?? "",
         new Date(e.ts).toISOString(),
       ]),
     ];
-    const csv = rows.map((r) => r.join(",")).join("\n");
+    const csv = rows
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -87,8 +123,10 @@ export default function RaffleAdminClient({
             Raffle Draw
           </h1>
           <p className="text-sm text-muted mt-2">
-            {entries.length} entrant{entries.length === 1 ? "" : "s"} in the
-            pool.
+            {entries.length} entrant{entries.length === 1 ? "" : "s"} ·{" "}
+            {verifiedCount} verified. Open each post link and confirm it tags{" "}
+            <span className="font-bold">@panelhaus</span> +{" "}
+            <span className="font-bold">#smudgethesponge</span> before drawing.
           </p>
         </header>
 
@@ -116,6 +154,18 @@ export default function RaffleAdminClient({
               {drawing ? "Drawing…" : "Draw winner"}
             </button>
           </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={verifiedOnly}
+              onChange={(e) => setVerifiedOnly(e.target.checked)}
+              className="size-4 accent-[var(--color-ink)]"
+            />
+            <span>
+              Only draw <span className="font-bold">verified</span> entrants
+              {verifiedOnly && ` (${verifiedCount} eligible)`}
+            </span>
+          </label>
           {error && <p className="text-sm font-bold text-red-700">{error}</p>}
         </section>
 
@@ -125,7 +175,7 @@ export default function RaffleAdminClient({
             <div className="text-[11px] font-black uppercase tracking-widest text-muted">
               Winner{latest.winners.length === 1 ? "" : "s"} ·{" "}
               {fmtTime(latest.drawnAt)} · seed {latest.seed} ·{" "}
-              {latest.entrantCount} entrants
+              {latest.entrantCount} eligible
             </div>
             {latest.winners.map((w) => (
               <div
@@ -156,16 +206,38 @@ export default function RaffleAdminClient({
           {entries.length === 0 ? (
             <p className="text-sm text-muted">No entries yet.</p>
           ) : (
-            <ul className="flex flex-col gap-1.5">
+            <ul className="flex flex-col gap-2">
               {entries.map((e) => (
                 <li
                   key={e.solWallet}
-                  className="flex items-center justify-between gap-3 text-sm"
+                  className="flex flex-col gap-1 border-[3px] border-ink bg-cream px-3 py-2"
                 >
-                  <code className="break-all">{e.solWallet}</code>
-                  <span className="text-[11px] text-muted whitespace-nowrap">
-                    {fmtTime(e.ts)}
-                  </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <code className="text-sm break-all">{e.solWallet}</code>
+                    <button
+                      onClick={() => toggleVerified(e)}
+                      className={`shrink-0 border-[3px] border-ink px-2 py-1 text-[10px] font-black uppercase tracking-widest shadow-[2px_2px_0_var(--color-ink)] ${
+                        e.verified ? "bg-green-300" : "bg-cream hover:bg-gold"
+                      }`}
+                    >
+                      {e.verified ? "Verified ✓" : "Mark verified"}
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-[11px] text-muted">
+                    {e.postUrl ? (
+                      <a
+                        href={e.postUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline decoration-2 underline-offset-2 break-all"
+                      >
+                        {e.postUrl}
+                      </a>
+                    ) : (
+                      <span className="italic">no post link</span>
+                    )}
+                    <span className="whitespace-nowrap">{fmtTime(e.ts)}</span>
+                  </div>
                 </li>
               ))}
             </ul>
