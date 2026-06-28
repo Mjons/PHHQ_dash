@@ -130,6 +130,56 @@ export async function addEntry(
   return !existing;
 }
 
+export type BatchAddResult = {
+  added: RaffleEntry[]; // newly inserted entries
+  duplicates: string[]; // already in the list — skipped
+  invalid: string[]; // not a valid Solana address — skipped
+};
+
+// Operator bulk-adds a batch of SOL addresses (collected off-platform). Each
+// is validated and deduped against the existing list. `verified` marks the
+// whole batch as operator-vouched (so they're eligible under "verified only").
+// These have no post link — postUrl is null.
+export async function addEntriesBatch(
+  rawAddresses: string[],
+  verified: boolean,
+): Promise<BatchAddResult> {
+  const existing =
+    (await redis.hgetall<Record<string, RaffleEntry>>(ENTRIES_KEY)) ?? {};
+  const result: BatchAddResult = { added: [], duplicates: [], invalid: [] };
+  const toWrite: Record<string, RaffleEntry> = {};
+  const seen = new Set<string>();
+  const ts = Date.now();
+
+  for (const raw of rawAddresses) {
+    const s = (raw ?? "").trim();
+    if (!s) continue;
+    if (!isSolanaAddress(s)) {
+      result.invalid.push(s);
+      continue;
+    }
+    if (existing[s] || seen.has(s)) {
+      result.duplicates.push(s);
+      continue;
+    }
+    seen.add(s);
+    const entry: RaffleEntry = {
+      solWallet: s,
+      postUrl: null,
+      ethWallet: null,
+      ts,
+      verified,
+    };
+    toWrite[s] = entry;
+    result.added.push(entry);
+  }
+
+  if (Object.keys(toWrite).length > 0) {
+    await redis.hset(ENTRIES_KEY, toWrite);
+  }
+  return result;
+}
+
 // Operator toggles a flag (verified / won / team) on an entrant. `won` and
 // `team` exclude them from the draw. No-op if the entrant doesn't exist.
 export async function setEntryFlag(

@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { RaffleEntry, RaffleDraw, EntryFlag } from "@/lib/raffle";
+import type {
+  RaffleEntry,
+  RaffleDraw,
+  EntryFlag,
+  BatchAddResult,
+} from "@/lib/raffle";
 
 function fmtTime(ts: number): string {
   return new Date(ts).toLocaleString();
@@ -60,6 +65,10 @@ export default function RaffleAdminClient({
   const [drawing, setDrawing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [latest, setLatest] = useState<RaffleDraw | null>(draws.at(-1) ?? null);
+  const [addText, setAddText] = useState("");
+  const [addVerified, setAddVerified] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [addSummary, setAddSummary] = useState<BatchAddResult | null>(null);
 
   const verifiedCount = entries.filter((e) => e.verified).length;
   // Who the draw would actually consider, mirroring lib/raffle.drawWinners.
@@ -85,6 +94,34 @@ export default function RaffleAdminClient({
     } catch {
       setEntries(prev); // roll back
       setError(`Couldn't save the ${flag} toggle — try again.`);
+    }
+  }
+
+  async function addBatch() {
+    setAdding(true);
+    setError(null);
+    setAddSummary(null);
+    try {
+      const res = await fetch("/api/admin/raffle/add", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: addText, verified: addVerified }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error || `Add failed (${res.status}).`);
+        return;
+      }
+      const result = data.result as BatchAddResult;
+      setAddSummary(result);
+      if (result.added.length > 0) {
+        setEntries((es) => [...es, ...result.added]);
+        setAddText("");
+      }
+    } catch {
+      setError("Network error — try again.");
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -224,6 +261,62 @@ export default function RaffleAdminClient({
             ))}
           </section>
         )}
+
+        {/* Bulk add — paste a batch of SOL addresses collected off-platform */}
+        <section className="border-[3px] border-ink bg-cream-dark p-5 shadow-[4px_4px_0_var(--color-ink)] flex flex-col gap-3">
+          <div className="text-[11px] font-black uppercase tracking-widest">
+            Add addresses
+          </div>
+          <p className="text-[11px] text-muted">
+            Paste extra SOL addresses (one per line, or comma/space separated).
+            Invalid addresses and ones already in the list are skipped.
+          </p>
+          <textarea
+            value={addText}
+            onChange={(e) => setAddText(e.target.value)}
+            disabled={adding}
+            rows={4}
+            placeholder={
+              "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU\nSo11111111111111111111111111111111111111112"
+            }
+            className="border-[3px] border-ink bg-cream px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gold"
+          />
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={addVerified}
+                onChange={(e) => setAddVerified(e.target.checked)}
+                className="size-4 accent-[var(--color-ink)]"
+              />
+              <span>
+                Mark as <span className="font-bold">verified</span>
+              </span>
+            </label>
+            <button
+              onClick={addBatch}
+              disabled={adding || addText.trim().length === 0}
+              className="border-[3px] border-ink bg-ink px-4 py-2 font-black uppercase tracking-widest text-cream shadow-[4px_4px_0_var(--color-gold)] disabled:opacity-50"
+            >
+              {adding ? "Adding…" : "Add to list"}
+            </button>
+          </div>
+          {addSummary && (
+            <div className="text-sm">
+              <p className="font-bold">
+                Added {addSummary.added.length} · skipped{" "}
+                {addSummary.duplicates.length} dupe
+                {addSummary.duplicates.length === 1 ? "" : "s"} ·{" "}
+                {addSummary.invalid.length} invalid
+              </p>
+              {addSummary.invalid.length > 0 && (
+                <p className="text-[11px] text-red-700 mt-1 break-all">
+                  Invalid: {addSummary.invalid.join(", ")}
+                </p>
+              )}
+            </div>
+          )}
+        </section>
 
         {/* Entrant list */}
         <section className="border-[3px] border-ink bg-cream-dark p-5 shadow-[4px_4px_0_var(--color-ink)] flex flex-col gap-3">
