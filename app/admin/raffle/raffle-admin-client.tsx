@@ -125,6 +125,28 @@ export default function RaffleAdminClient({
     }
   }
 
+  async function resetDraws() {
+    const wonCount = entries.filter((e) => e.won).length;
+    if (
+      !confirm(
+        `Clear the "won" flag on ${wonCount} entrant${wonCount === 1 ? "" : "s"} and re-open the full pool? Entrants and the draw history are kept.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    const prev = entries;
+    setEntries((es) => es.map((e) => ({ ...e, won: false })));
+    setLatest(null);
+    try {
+      const res = await fetch("/api/admin/raffle/reset", { method: "POST" });
+      if (!res.ok) throw new Error();
+    } catch {
+      setEntries(prev); // roll back
+      setError("Couldn't reset the draws — try again.");
+    }
+  }
+
   async function draw() {
     setDrawing(true);
     setError(null);
@@ -239,6 +261,18 @@ export default function RaffleAdminClient({
               Only draw <span className="font-bold">verified</span> entrants
             </span>
           </label>
+          <div className="flex items-center gap-3 border-t-[3px] border-ink/15 pt-3">
+            <button
+              onClick={resetDraws}
+              disabled={drawing || entries.every((e) => !e.won)}
+              className="border-[3px] border-ink bg-cream px-3 py-1.5 text-[10px] font-black uppercase tracking-widest shadow-[2px_2px_0_var(--color-ink)] hover:bg-gold disabled:opacity-50"
+            >
+              Reset draws
+            </button>
+            <span className="text-[11px] text-muted">
+              Clears the “won” flag on all entrants so you can draw again.
+            </span>
+          </div>
           {error && <p className="text-sm font-bold text-red-700">{error}</p>}
         </section>
 

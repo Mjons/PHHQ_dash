@@ -193,6 +193,22 @@ export async function setEntryFlag(
   await redis.hset(ENTRIES_KEY, { [key]: { ...existing, [flag]: value } });
 }
 
+// Clear the `won` flag on every entrant so the full pool is eligible again —
+// keeps the entrants and their verified/team flags. The recorded draw history
+// (seeds/winners) is left intact as an audit trail. Returns how many were
+// cleared.
+export async function resetWon(): Promise<number> {
+  const all = await redis.hgetall<Record<string, RaffleEntry>>(ENTRIES_KEY);
+  if (!all) return 0;
+  const toWrite: Record<string, RaffleEntry> = {};
+  for (const [key, entry] of Object.entries(all)) {
+    if (entry.won) toWrite[key] = { ...entry, won: false };
+  }
+  const count = Object.keys(toWrite).length;
+  if (count > 0) await redis.hset(ENTRIES_KEY, toWrite);
+  return count;
+}
+
 export async function readAllEntries(): Promise<RaffleEntry[]> {
   const all = await redis.hgetall<Record<string, RaffleEntry>>(ENTRIES_KEY);
   if (!all) return [];
